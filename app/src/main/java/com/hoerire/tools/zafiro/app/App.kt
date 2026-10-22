@@ -54,7 +54,14 @@ class App : Application() {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         DynamicColors.applyToActivitiesIfAvailable(this)
         // 首启幂等铺开宿主工具集（需已授予 root；/data/local 不可写，且私有目录禁 exec）
-        applicationScope.launch { runCatching { HostToolsInstaller.install(applicationContext) } }
+        // 冷启动不做 IO：只同步根路径并注册懒部署器。
+        // 真正解压发生在首次调用 shell / zafiro_env 时（RuntimeEnvironment.ensureHostTools）。
+        HostToolsInstaller.bindRoot(applicationContext)
+        RuntimeEnvironment.registerHostToolsDeployer {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                HostToolsInstaller.ensure(applicationContext)
+            }
+        }
         applicationScope.launch {
             XRepo.tryPutDefaultSettings()
         }

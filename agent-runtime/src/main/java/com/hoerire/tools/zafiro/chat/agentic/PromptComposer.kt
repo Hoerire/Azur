@@ -57,10 +57,21 @@ class PromptComposer {
     // --- Volatile tier: memory snapshot (per-session) ---
 
     private fun buildVolatileTier(input: PromptComposerInput): String? {
-        val items = input.memoryItems.map(String::trim).filter(String::isNotBlank)
-        if (items.isEmpty()) return null
+        val raw = input.memoryItems.map(String::trim).filter(String::isNotBlank)
+        if (raw.isEmpty()) return null
+        // 预算制：单条与总量双重封顶；超限时保留靠后的条目（越新越贴近当前工作）
+        val kept = ArrayDeque<String>()
+        var used = 0
+        for (item in raw.asReversed()) {
+            val clipped = if (item.length <= MEMORY_ITEM_MAX_CHARS) item
+            else item.take(MEMORY_ITEM_MAX_CHARS).trimEnd() + "…"
+            if (used + clipped.length > MEMORY_TOTAL_MAX_CHARS) break
+            kept.addFirst(clipped)
+            used += clipped.length
+        }
+        if (kept.isEmpty()) return null
         val separator = "═".repeat(46)
-        val content = items.joinToString("\n§\n")
+        val content = kept.joinToString("\n§\n")
         return "$separator\nMEMORY\n$separator\n$content"
     }
 
@@ -101,7 +112,7 @@ class PromptComposer {
                     appendLine("  <skill>")
                     appendLine("    <id>$id</id>")
                     appendLine("    <name>$name</name>")
-                    if (desc.isNotBlank()) appendLine("    <description>$desc</description>")
+                    if (desc.isNotBlank()) appendLine("    <description>${clipSkillDescription(desc)}</description>")
                     if (dir.isNotBlank()) appendLine("    <dir>$dir</dir>")
                     append("  </skill>")
                 }
@@ -253,4 +264,19 @@ class PromptComposer {
                     "构建 / 编译 / 打包 / 出 APK / 工具链 / gcc·clang·cmake / 环境缺失 这类任务，" +
                     "先 load_skill(\"build-env\")；环境未部署时 zafiro_env 会自动从 Download 解压扩展包，不要手工摸盘。"
     }
+}
+
+// 注入预算：控制单次 prompt 体积，避免模型因超长上下文而忽略内容。
+private const val SKILL_DESCRIPTION_MAX_CHARS = 160
+private const val MEMORY_ITEM_MAX_CHARS = 200
+private const val MEMORY_TOTAL_MAX_CHARS = 2400
+private const val SKILL_DESCRIPTION_MIN_SENTENCE = 40
+
+private fun clipSkillDescription(raw: String): String {
+    val oneLine = raw.replace(Regex("\\s+"), " ").trim()
+    if (oneLine.length <= SKILL_DESCRIPTION_MAX_CHARS) return oneLine
+    val cut = oneLine.take(SKILL_DESCRIPTION_MAX_CHARS)
+    val end = cut.indexOfFirst { it == '.' || it == '。' || it == ';' || it == '；' }
+    val body = if (end >= SKILL_DESCRIPTION_MIN_SENTENCE) cut.substring(0, end + 1) else cut.trimEnd()
+    return body + "…"
 }

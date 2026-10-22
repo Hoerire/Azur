@@ -1,6 +1,6 @@
 ---
 name: hosttools
-description: 宿主侧内置命令行工具集（rg 搜索 / jq JSON / sqlite3 数据库 / file 类型识别 / fd 找文件 / fzf / tree / 7zz / zip / rsync / curl / xz / zstd / lz4 / python3+pip / git / openssl / busybox 305 applet）。凡出现「搜索文件 / 搜代码 / grep / find / 找文件 / JSON 解析 / jq / 数据库 / sqlite / 识别文件类型 / 目录树 / 解压 / 压缩 / 7z / zip / zstd / xz / lz4 / rsync / curl / wget / awk / sed / md5sum / sha256sum / 宿主没有 python3 / 没工具 / 没有解释器 / 命令找不到」先读本技能，直接用，不要绕容器、不要自己下二进制。
+description: 宿主侧内置命令行工具集（rg/jq/sqlite3/file/fd/tree/7zz/zip/rsync/curl/xz/zstd/lz4/python3/git/openssl/busybox）。凡出现搜索文件、解析 JSON、查库、识别文件类型、解压压缩、宿上没有 python3 或某命令找不到，先读本技能直接用，不要绕容器。
 ---
 
 # 宿主工具集（53 个命令，全部真机实测）
@@ -59,6 +59,6 @@ description: 宿主侧内置命令行工具集（rg 搜索 / jq JSON / sqlite3 �
 ## 在设备上跑 Python：随包 CPython 是唯一解释器
 
 - 路径：`/data/user/0/com.hoerire.tools/files/hosttools/bin/python3`（3.12，纯 stdlib）。
-- **zafiro_env 的 Alpine chroot 里没有 python3**（`python3: not found`），也看不到 `/data/user`。chroot 里要用它只能 `nsenter -t 1 -m -- /data/user/0/.../bin/python3 script.py`。
+- **zafiro_env 的 Alpine chroot 里没有 python3**，也看不到 `/data/user`。chroot 里要用它只能 `nsenter -t 1 -m -- /data/user/0/.../bin/python3 script.py`。
 - 执行通道优先级：App 内 `shell` 工具（用户能看到命令与输出）> `zafiro_env shell` + nsenter。`shell` 挂掉（PTY 层故障）时才退到后者。
 - 批量扫描/改写 Kotlin、二进制一律写 python 脚本再执行。别用 `sed -i`/heredoc 拼多行：引号地狱（`unterminated quoted string`、`MISSING_REQUIRED_FIELD`）返工成本远高于写脚本。

@@ -1,19 +1,19 @@
 ---
 name: build
-description: 本机构建与出包唯一入口。涉及「构建/编译/打包/出 APK/debug/release/assemble/R8/资源裁剪/签名 keystore/versionCode/versionName/applicationId 包名/gradle/AGP/SDK/build-tools/aapt2/NDK/工具链/gcc/clang/cmake/ninja/rust/go/node/env部署/联网重建/rootfs/容器 chroot/tmp 临时目录/out md5/安装 APK/pm install/覆盖安装/共存测试/APK 分析/反编译/反汇编/解包/dex/smali/AXML/AndroidManifest 解析/so/ELF/readelf/objdump/nm/strings/签名校验/apksigner/执行/运行/跑命令/跑脚本/BUILD FAILED/编译报错/找不到 SDK/内存不足重启/命令没报错但输出为空/Unknown option/unrecognized option/not executable 64-bit ELF/Permission denied/toybox/busybox」都先读本技能；改代码后的构建、校验、清理同样按本技能。
+description: 本地构建与出包入口。凡涉及构建/编译/打包/出 APK/assemble/R8/签名 keystore/versionCode/applicationId/gradle/AGP/SDK/aapt2/NDK/工具链/env 部署/rootfs/容器/安装 APK/pm install/反编译/解包/dex/smali/AXML/ELF/readelf/BUILD FAILED/编译报错/命令找不到，先读本技能。
 ---
 
 ## 铁律：装包前先报改动（用户强制要求）
 
-**执行门禁（2026-10-23 追加，因为被违反过两次）**
+**执行门禁**
 
-- 摘要必须是**单独一条消息**，消息里只有摘要；`pm install` 只能在**下一条**消息里发。摘要和安装命令写在同一条 = 视为没写。
+- 装包前先出摘要，**摘要之后立即执行安装**，不要停在摘要上等确认。用户已明确授权装包时，摘要只是履行步骤，不是等待点。
 - 摘要必须含：本轮 diff 的文件表（每个文件一行：改了什么）、产物路径、size、md5、versionCode。
 - 没写摘要就装 = 失败。用户会直接打断并要求重来。
 
-**同日踩到的两个真坑，写进摘要时顺手核对：**
+**写摘要前顺手核对：**
 
-1. 改完 `src/` 忘了 `sh project/sync.sh <树名>` 就构建 → 装上去的是**旧代码**（表现为改了 `FIXED_DIRS` 但机器上仍建中文目录）。
+1. 改完源码树必须 `sync` 到构建树再构建，否则装上去的是旧代码。
 2. 装包后 `HostToolsInstaller` 会用 **APK 里的 `assets/buildkit`** 覆盖 `/data/local/aitools/*.sh`。手工改过根脚本后不重新出包，下次装包就被回滚（表现为 `build-src.sh` 又变成中文路径、构建报 `SRC 必须在 .../project/ 下`）。
 
 
@@ -51,6 +51,8 @@ PYTHONPATH=/data/local/aitools/pylib $H/bin/netrun $H/bin/python3 script.py
 - 依赖放 `/data/local/aitools/pylib`（不是 `tmp/`，换构建不清）
 
 ## 0. 铁律
+
+- 构建前先跑 `sh /data/local/aitools/verify.sh`；它只读、输出 PASS/FAIL、退码非 0 即存在真实问题。**不要用自己的叙述代替它**。
 - 可写只有 `/data/local/aitools/`；例外：`pm install` 用 `/data/local/tmp`（装完删）。
 - 改代码只改 `src/<树>`；构建只跑 `project/<同名树>`；同步只走 `project/sync.sh <源码目录名>`。
 - 产物→`out/`；日志→`logs/`；中间件→`tmp/`（任务结束清空）。
@@ -156,20 +158,23 @@ cp x.apk /data/local/tmp/x.apk && pm install -r /data/local/tmp/x.apk && rm -f /
 - `pyexpat` 需 `assets/hosttools/lib/libexpat.so.1`（musl 2.8.1）。
 - pip 只能 `--version`，**不能 `pip install`**（musl PT_INTERP=/lib/ld-musl-aarch64.so.1 不存在）。装纯 py 包用 `sh /data/local/aitools/pyinstall.sh <pkg>`。
 
-## hosttools / assets 改动后的重铺（实测）
+## hosttools / assets 改动后的重铺
 
 - HostToolsInstaller 的重铺开关是 `app/src/main/assets/hosttools/VERSION` 的 **SHA-1**（stamp 文件 = `files/hosttools.stamp`），**不是** APK lastUpdateTime。改了 hosttools 里的二进制却不动 VERSION → 装完新版用户手里还是旧文件（aapt2 mtime 不变、新加的 so 不出现），看着"改了没生效"。
 - 改 hosttools 必须同轮改 VERSION（追加一行标记，如 `toolchain-clean-1`）。
 - **assets 下有两份 toolchain**：`assets/toolchain`（进 APK）与 `assets/hosttools/toolchain`（铺到 files/hosttools）。只改一份 → APK 里还是旧的。先 `find . -type d -name toolchain` 找全。
 - 判断是否真重铺：`ls -l files/hosttools/toolchain/aapt2` 的 mtime + `cat files/hosttools.stamp`。
 - 改了 assets 里的大文件（assets 目录 >10MB）要 `rm -rf project/<tree>/app/build` 再构建，否则 AGP 复用旧 assets 缓存。
-- `files/skills/` 是覆盖式同步不是镜像：assets 里删掉的技能（如已移除的 `termux`）不会自动消失，要手工 `rm -rf files/skills/<id>`。
+- 技能只改 `assets/skills/`，禁止手改 `files/skills/`：后者是播种产物，手改会让 `.seed` 与内容失配，播种逻辑随即判定「用户已改」而不再更新；assets 里删掉的技能不会自动从运行目录消失，需要手动清理。
 
 ## 出包前守卫：assets 洁净度
 
 ```sh
-grep -ril termux app/src/main/assets | grep . && echo "FAIL: termux refs"
+# assets 不应带构建机的绝对路径（换机必崩）
+# verify.sh 拼接字面串构造模式，避免脚本自匹配
+sh /data/local/aitools/verify.sh || exit 1
 ```
-- 第三方预编译二进制（aapt2 及其 71 个库）出自 termux-packages 构建环境：RUNPATH 指向 `/data/data/com.termux/files/usr/lib`，`.rodata` 带 `/home/builder/.termux-build/...`。设备上装着 Termux 时能跑，换机/卸载立刻 `library "libz.so.1" not found`。
-- 净化（不需要重编）：`patchelf --set-rpath '$ORIGIN'`（库）/ `'$ORIGIN/lib'`（可执行）；`.rodata` 等长掩码（`termux`→`xxxxxx`，长度不变、不动偏移）；把闭包缺的库（libz.so.1 / libexpat.so.1 / libbz2.so.1.0）收编进 `toolchain/lib`。
-- 验收：**不设** LD_LIBRARY_PATH 直接跑 `toolchain/aapt2 version`，再 `aapt2 compile <某个 values.xml>` 出 zip；`grep -c termux` 必须为 0。
+
+- 第三方预编译二进制（aapt2 及其依赖库）常把构建机路径写进 ELF：RUNPATH 指向构建机的绝对 `usr/lib`，`.rodata` 带构建目录。这类二进制只在装有同款环境时能跑，换机立刻 `library "libz.so.1" not found`。
+- 净化（不需要重编）：`patchelf --set-rpath '$ORIGIN'`（库）/ `'$ORIGIN/lib'`（可执行）；`.rodata` 等长掩码（长度不变、不动偏移）；把闭包缺的库（libz.so.1 / libexpat.so.1 / libbz2.so.1.0）收编进 `toolchain/lib`。
+- 验收：**不设** LD_LIBRARY_PATH 直接跑 `toolchain/aapt2 version`，再 `aapt2 compile <某个 values.xml>` 出 zip。

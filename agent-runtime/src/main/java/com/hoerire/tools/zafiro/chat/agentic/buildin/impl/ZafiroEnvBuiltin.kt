@@ -1,5 +1,6 @@
 package com.hoerire.tools.zafiro.chat.agentic.buildin.impl
 
+import com.hoerire.tools.zafiro.settings.RuntimeEnvironment
 import com.hoerire.tools.zafiro.chat.agentic.buildin.BuiltinTool
 import com.hoerire.tools.zafiro.chat.agentic.buildin.BuiltinToolRequest
 import com.hoerire.tools.zafiro.chat.agentic.buildin.BuiltinToolResult
@@ -41,6 +42,8 @@ class ZafiroEnvBuiltin : BuiltinTool() {
     override val inputSchemaJson: String get() = SCHEMA
 
     override suspend fun invoke(request: BuiltinToolRequest): BuiltinToolResult {
+        // 构建/环境工具依赖宿主脚本与工具链：首次调用才部署
+        RuntimeEnvironment.ensureHostTools()
         val obj = try {
             Json.parseToJsonElement(request.argumentsJson).jsonObject
         } catch (throwable: Throwable) {

@@ -30,7 +30,7 @@ object HostToolsInstaller {
     }
 
     private val INIT_SCRIPTS = listOf("sign.init.gradle", "no-lint.init.gradle")
-    private val HOST_SCRIPTS = listOf("bootstrap-env.sh", "build-src.sh", "env-doctor.sh", "hosttools-install.sh", "run.sh")
+    private val HOST_SCRIPTS = listOf("bootstrap-env.sh", "build-src.sh", "env-doctor.sh", "hosttools-install.sh", "run.sh", "verify.sh")
     private val FIXED_DIRS = listOf("src", "project", "out", "logs", "tmp", "env")
 
     private fun home(ctx: Context) = File(ctx.filesDir, "hosttools")
@@ -43,6 +43,27 @@ object HostToolsInstaller {
     }.getOrDefault(false)
 
     /** 阻塞执行，调用方放 IO 线程。 */
+    /** 仅同步根路径（纯计算、无 IO），供懒部署前的路径解析使用。 */
+    fun bindRoot(ctx: Context) {
+        runCatching { RuntimeEnvironment.aitoolsRoot = destRoot(ctx) }
+    }
+
+    @Volatile
+    private var ensured = false
+
+    /**
+     * 懒部署入口：首次调用才解压，之后直接返回缓存结果。
+     * 由工具执行路径触发（见 RuntimeEnvironment.ensureHostTools），不在 App 冷启动跑。
+     */
+    @Synchronized
+    fun ensure(ctx: Context): Boolean {
+        Log.i(TAG, "ensure() called ensured=$ensured")
+        if (ensured) return true
+        val ok = runCatching { if (isInstalled(ctx)) true else install(ctx) }.getOrDefault(false)
+        ensured = ok
+        return ok
+    }
+
     fun install(ctx: Context): Boolean {
         // 根域必须每次冷启动都对齐（早退也要设），否则 zafiro_env 会回落主根
         val dest = destRoot(ctx)
@@ -55,7 +76,9 @@ object HostToolsInstaller {
             val needDeploy = !File(dest).isDirectory ||
                 !File(dest, "env/toolchain/aapt2").isFile ||
                 !File(dest, "env/buildkit/sign.init.gradle").isFile ||
-                !File(dest, "env/rootfs/usr/local/bin/aapt2").isFile
+                !File(dest, "env/rootfs/usr/local/bin/aapt2").isFile ||
+                // 宿主脚本按清单 + 内容校验：新增条目能补铺，升级后内容变了也能重铺
+                HOST_SCRIPTS.any { !File(dest, it).isFile }
             if (needDeploy) {
                 runCatching {
                     val st = File(ctx.cacheDir, "ht-deploy").apply { deleteRecursively(); mkdirs() }
@@ -247,4 +270,5 @@ object HostToolsInstaller {
         }
         md.digest().joinToString("") { "%02x".format(it) }
     }.getOrDefault("0")
+
 }

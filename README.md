@@ -21,8 +21,9 @@ an execution environment that runs native binaries, a bootstrap path that provis
 device, and a build pipeline whose inputs ship inside the APK. Upstream attribution is retained in the About
 screen.
 
-The application installs as a single APK. On first launch it extracts 1,579 aarch64 binaries into private
-storage and registers them as executables available to the model.
+The application installs as a single APK. Launching it does no unpacking: the 1,579 aarch64 binaries are
+extracted into private storage the first time a tool actually needs them, then registered as executables
+available to the model.
 
 | | |
 |---|---|

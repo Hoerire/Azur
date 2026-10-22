@@ -1,6 +1,6 @@
 ---
 name: tool-config
-description: Read or change App's own settings by editing the JSON files in its sandbox. Use this whenever the user asks to see, explain, change, add or remove App configuration — agent profiles, execution rules, takeover rules, text actions, saved LLM configs, or app preferences such as theme and floating ball — and also when a App setting seems wrong, missing, or stuck. Make sure to use this skill even when the user does not say "config": any request about App's behaviour that a settings toggle would answer belongs here.
+description: Read or change the App's own settings by editing JSON files in its sandbox. Use whenever the user asks to see, explain, change, add or remove App configuration (agent profiles, execution rules, text actions, LLM configs, theme, floating ball), or when a setting looks wrong, missing or stuck.
 ---
 
 # App config

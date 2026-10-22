@@ -1,5 +1,6 @@
 package com.hoerire.tools.zafiro.chat.agentic.buildin.impl
 
+import com.hoerire.tools.zafiro.settings.RuntimeEnvironment
 import com.hoerire.tools.zafiro.chat.agentic.ToolExecutionPreflight
 import com.hoerire.tools.zafiro.chat.agentic.shell.SessionRegistry
 import com.hoerire.tools.zafiro.chat.agentic.shell.SessionMeta
@@ -68,6 +69,8 @@ open class ShellBuiltin(
     }
 
     override suspend fun preflightPathAccess(command: String, args: BaseSessionArgs) {
+        // 首次 shell 调用时才部署宿主工具集（冷启动零成本）
+        RuntimeEnvironment.ensureHostTools()
         preflight.ensurePathAccess(command + " " + (args as? ShellArgs)?.workdir.orEmpty())
     }
 
