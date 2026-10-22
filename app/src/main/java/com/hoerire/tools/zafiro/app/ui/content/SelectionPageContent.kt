@@ -1,0 +1,151 @@
+package com.hoerire.tools.zafiro.app.ui.content
+
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.hoerire.tools.uikit.base.LocalAppDarkTheme
+import com.hoerire.tools.uikit.infra.component.SettingsGroupCard
+import com.hoerire.tools.uikit.infra.component.SettingsItemDivider
+import com.hoerire.tools.uikit.infra.component.SettingsListItem
+import com.hoerire.tools.uikit.infra.component.SettingsListPageContent
+import com.hoerire.tools.zafiro.app.R
+
+data class SelectionOption(
+    val id: String,
+    val title: String,
+    @DrawableRes val leadingIconRes: Int? = null,
+    val tintLeadingIcon: Boolean = true,
+    /** 非空时 leading 渲染为该颜色的圆形色板（优先于 leadingIconRes）。 */
+    val leadingSwatchColor: Color? = null,
+    /** Vector 图标（与 leadingIconRes 二选一）。 */
+    val leadingIconVector: ImageVector? = null,
+    val darkContainerColor: Color? = null,
+    val lightContainerColor: Color? = null,
+    val darkContentColor: Color? = null,
+    val lightContentColor: Color? = null,
+    /** 非空时优先于 contentColor 作为图标 tint 色。 */
+    val darkIconColor: Color? = null,
+    val lightIconColor: Color? = null,
+    /** 选中态：trailing 渲染对勾，不渲染 chevron。 */
+    val selected: Boolean = false,
+    val onClick: () -> Unit,
+)
+
+/** 单个选项行：56dp 圆形 leading（色板或图标）+ 选中对勾。 */
+@Composable
+internal fun SelectionOptionRow(
+    option: SelectionOption,
+    isDarkTheme: Boolean,
+) {
+    val brandContainer = if (isDarkTheme) option.darkContainerColor else option.lightContainerColor
+    val brandContent = if (isDarkTheme) option.darkContentColor else option.lightContentColor
+    val brandIcon = if (isDarkTheme) option.darkIconColor else option.lightIconColor
+    SettingsListItem(
+        title = option.title,
+        showChevron = !option.selected,
+        enabled = true,
+        trailingContent = if (option.selected) {
+            {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        } else {
+            null
+        },
+        leadingContent = {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(
+                        option.leadingSwatchColor
+                            ?: brandContainer
+                            ?: MaterialTheme.colorScheme.surfaceContainerHighest
+                    ),
+            ) {
+                val iconRes = option.leadingIconRes
+                val iconVector = option.leadingIconVector
+                if (iconRes != null) {
+                    Icon(
+                        painter = painterResource(iconRes),
+                        contentDescription = null,
+                        tint = when {
+                            !option.tintLeadingIcon -> Color.Unspecified
+                            brandIcon != null -> brandIcon
+                            brandContent != null -> brandContent
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.size(24.dp),
+                    )
+                } else if (iconVector != null) {
+                    Icon(
+                        imageVector = iconVector,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp),
+                    )
+                } else if (option.leadingSwatchColor != null && option.selected) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+        },
+        onClick = option.onClick,
+    )
+}
+
+/** 分组卡片形式的选项列表：组内 divider 分隔。 */
+@Composable
+internal fun SelectionGroupCard(
+    options: List<SelectionOption>,
+    isDarkTheme: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    SettingsGroupCard(modifier = modifier) {
+        options.forEachIndexed { index, option ->
+            SelectionOptionRow(option, isDarkTheme)
+            if (index != options.lastIndex) {
+                SettingsItemDivider()
+            }
+        }
+    }
+}
+
+@Composable
+fun SelectionPageContent(
+    options: List<SelectionOption>,
+    /** onboarding 吸底按钮留位，否则最后一项会被盖住 */
+    contentBottomPadding: Dp? = null,
+) {
+    SettingsListPageContent(
+        description = stringResource(R.string.ui_onboard_provider_pick_description),
+        contentBottomPadding = contentBottomPadding,
+    ) {
+        SelectionGroupCard(options = options, isDarkTheme = LocalAppDarkTheme.current)
+    }
+}

@@ -1,0 +1,164 @@
+package com.hoerire.tools.zafiro.app.ui.content
+
+import android.content.Context
+import android.content.res.Configuration
+import androidx.annotation.StringRes
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Feedback
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
+import androidx.core.os.LocaleListCompat
+import com.hoerire.tools.logging.Logger
+import com.hoerire.tools.uikit.infra.component.settings.SettingsPageSpec
+import com.hoerire.tools.uikit.infra.component.settings.SettingsRowAction
+import com.hoerire.tools.uikit.infra.component.settings.SettingsRowLeadingIcon
+import com.hoerire.tools.uikit.infra.component.settings.SettingsRowSpec
+import com.hoerire.tools.uikit.infra.component.settings.SettingsSectionLayout
+import com.hoerire.tools.uikit.infra.component.settings.SettingsSectionSpec
+import com.hoerire.tools.uikit.infra.component.settings.SettingsSpecPageContent
+import com.hoerire.tools.uikit.infra.nav.pageViewModel
+import com.hoerire.tools.zafiro.app.BuildConfig
+import com.hoerire.tools.zafiro.app.R
+import com.hoerire.tools.zafiro.app.ui.model.AboutSettingsEffect
+import com.hoerire.tools.zafiro.app.ui.model.AboutSettingsIntent
+import com.hoerire.tools.zafiro.app.ui.model.AboutSettingsItemId
+import com.hoerire.tools.zafiro.app.ui.model.AboutSettingsItemUiState
+import com.hoerire.tools.zafiro.app.ui.model.AboutSettingsUiState
+import com.hoerire.tools.zafiro.app.ui.model.AboutSettingsViewModel
+import com.hoerire.tools.zafiro.app.ui.model.buildIssueUri
+
+private const val ABOUT_SETTINGS_ROW_ID_PREFIX = "about.item."
+private const val LOG_TAG = "zafiro_AboutSettings"
+
+@Composable
+fun AboutSettingsContent() {
+    val viewModel = pageViewModel<AboutSettingsViewModel>()
+    val uiState by viewModel.uiStateFlow.collectAsState()
+    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+
+    LaunchedEffect(viewModel, uriHandler) {
+        viewModel.uiEffect.collect { effect ->
+            // 单个 effect 抛异常不能杀掉收集协程，否则后续 effect 全部无人接收（表现为点一次后再也点不动）
+            runCatching {
+                when (effect) {
+                    is AboutSettingsEffect.OpenUri -> uriHandler.openUri(effect.uri)
+                    is AboutSettingsEffect.OpenFeedbackIssue -> {
+                        val body =
+                            context.localizedString(effect.bodyTemplateRes, effect.languageTag)
+                        uriHandler.openUri(buildIssueUri(effect.title, body))
+                    }
+                }
+            }.onFailure { throwable ->
+                Logger.w(LOG_TAG, "open effect failed: ${throwable.message}")
+            }
+        }
+    }
+
+    AboutSettingsContentBody(
+        uiState = uiState,
+        onItemClick = { itemId ->
+            viewModel.sendIntent(AboutSettingsIntent.OpenItem(itemId))
+        },
+    )
+}
+
+@Composable
+private fun AboutSettingsContentBody(
+    uiState: AboutSettingsUiState,
+    onItemClick: (AboutSettingsItemId) -> Unit,
+) {
+    SettingsSpecPageContent(
+        spec = aboutSettingsSpec(
+            uiState = uiState,
+            versionName = BuildConfig.VERSION_NAME,
+            description = stringResource(R.string.ui_settings_about_description),
+        ),
+        onAction = { action ->
+            when (action) {
+                is SettingsRowAction.Navigate -> {
+                    val itemId =
+                        aboutSettingsItemIdFromRowId(action.id) ?: return@SettingsSpecPageContent
+                    val item = uiState.items.firstOrNull { it.id == itemId }
+                        ?: return@SettingsSpecPageContent
+                    if (item.canOpen) {
+                        onItemClick(itemId)
+                    }
+                }
+
+                else -> Unit
+            }
+        },
+    )
+}
+
+@Composable
+private fun aboutSettingsSpec(
+    uiState: AboutSettingsUiState,
+    versionName: String,
+    description: String,
+): SettingsPageSpec {
+    val rows = uiState.items.map { item ->
+        if (item.canOpen) {
+            SettingsRowSpec.Navigation(
+                id = aboutSettingsRowId(item.id),
+                title = stringResource(item.titleRes),
+                leadingIcon = item.leadingIcon(),
+            )
+        } else {
+            SettingsRowSpec.Value(
+                title = stringResource(item.titleRes),
+                leadingIcon = item.leadingIcon(),
+            )
+        }
+    } + SettingsRowSpec.Value(
+        title = stringResource(R.string.ui_settings_about_version),
+        currentState = versionName,
+    )
+
+    return SettingsPageSpec(
+        description = description,
+        sections = listOf(
+            SettingsSectionSpec(
+                layout = SettingsSectionLayout.GroupedCard,
+                rows = rows,
+            )
+        ),
+    )
+}
+
+// 用应用内语言设置解析字符串；空 tag 跟随系统默认解析
+private fun Context.localizedString(@StringRes res: Int, tag: String): String {
+    if (tag.isBlank()) return resources.getString(res)
+    val config = Configuration(resources.configuration)
+    config.setLocale(LocaleListCompat.forLanguageTags(tag).get(0))
+    return createConfigurationContext(config).getString(res)
+}
+
+private fun aboutSettingsRowId(id: AboutSettingsItemId): String =
+    "$ABOUT_SETTINGS_ROW_ID_PREFIX${id.name}"
+
+private fun aboutSettingsItemIdFromRowId(id: String): AboutSettingsItemId? {
+    if (!id.startsWith(ABOUT_SETTINGS_ROW_ID_PREFIX)) return null
+    val rawId = id.removePrefix(ABOUT_SETTINGS_ROW_ID_PREFIX)
+    return AboutSettingsItemId.entries.firstOrNull { it.name == rawId }
+}
+
+private fun AboutSettingsItemUiState.leadingIcon(): SettingsRowLeadingIcon {
+    return when (id) {
+        AboutSettingsItemId.AuthorHomepage,
+        AboutSettingsItemId.Github -> SettingsRowLeadingIcon.PainterResource(R.drawable.github)
+
+        AboutSettingsItemId.Afdian -> SettingsRowLeadingIcon.PainterResource(R.drawable.aifadian)
+        AboutSettingsItemId.Telegram -> SettingsRowLeadingIcon.PainterResource(R.drawable.telegram)
+        AboutSettingsItemId.FeatureFeedback -> SettingsRowLeadingIcon.Vector(Icons.Default.Feedback)
+        AboutSettingsItemId.BugFeedback -> SettingsRowLeadingIcon.Vector(Icons.Default.BugReport)
+    }
+}
+

@@ -1,0 +1,101 @@
+// 保护：AgentSessionEngine 与 Skill 注入 System Prompt、空列表容错与加载失败降级契约
+package com.hoerire.tools.zafiro.chat
+
+import com.hoerire.tools.zafiro.chat.util.SilentLoggerRule
+import com.hoerire.tools.zafiro.settings.model.RuntimeLlmConfig
+import com.hoerire.tools.zafiro.settings.model.RuntimeSkillMetadata
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+
+class AgentSessionEngineRefreshSkillTest {
+    @get:Rule
+    val silentLogger = SilentLoggerRule()
+
+    private val engine = AgentSessionEngine()
+
+    @Test
+    fun refresh_passesEnabledSkillsIntoPrompt() = runTest {
+        val gateway = installRuntimeSettingsGatewayForTest(
+            FakeRuntimeSettingsGateway(
+                llmConfig = validLlmConfig(),
+                enabledSkills = listOf(
+                    skill(
+                        id = "skill-a",
+                        name = "Skill A",
+                        description = "Description A",
+                    )
+                ),
+            )
+        )
+
+        val snapshot = engine.refresh()
+
+        assertEquals(1, gateway.listEnabledSkillsCallCount)
+        assertTrue(snapshot.prompt.finalSystemPrompt.contains("<available_skills>"))
+        assertTrue(snapshot.prompt.finalSystemPrompt.contains("<id>skill-a</id>"))
+    }
+
+    @Test
+    fun refresh_handlesEmptySkillList() = runTest {
+        val gateway = installRuntimeSettingsGatewayForTest(
+            FakeRuntimeSettingsGateway(llmConfig = validLlmConfig())
+        )
+
+        val snapshot = engine.refresh()
+
+        assertEquals(1, gateway.listEnabledSkillsCallCount)
+        assertFalse(snapshot.prompt.finalSystemPrompt.contains("## Skills (mandatory)"))
+        assertFalse(snapshot.prompt.finalSystemPrompt.contains("<available_skills>"))
+    }
+
+    @Test
+    fun stream_reusesPreviousSnapshotWhenSkillListFails() = runTest {
+        val gateway = installRuntimeSettingsGatewayForTest(
+            FakeRuntimeSettingsGateway(
+                llmConfig = validLlmConfig(),
+                enabledSkills = listOf(skill(id = "skill-a", name = "Skill A")),
+            )
+        )
+        val previous = engine.refresh()
+        gateway.failListEnabledSkills = IllegalStateException("skills failed")
+
+        val firstEvent = withTimeoutOrNull(1_000) {
+            engine.stream("q").firstOrNull()
+        }
+
+        assertEquals(2, gateway.listEnabledSkillsCallCount)
+        assertEquals(previous, engine.snapshot())
+        val error = firstEvent as? LlmStreamEvent.Error
+        assertFalse(error?.message?.contains("skills failed") == true)
+    }
+
+    private fun validLlmConfig(): RuntimeLlmConfig {
+        return RuntimeLlmConfig(
+            endpoint = "https://example.com",
+            model = "test-model",
+            prompt = "Base prompt",
+        )
+    }
+
+    private fun skill(
+        id: String,
+        name: String,
+        description: String = "",
+    ): RuntimeSkillMetadata {
+        return RuntimeSkillMetadata(
+            id = id,
+            name = name,
+            description = description,
+            relativePath = "skills/$id/SKILL.md",
+            absolutePath = "/private/skills/$id/SKILL.md",
+            absoluteDir = "/private/skills/$id",
+            enabled = true,
+        )
+    }
+}

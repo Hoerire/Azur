@@ -1,0 +1,112 @@
+package com.hoerire.tools.zafiro.chat
+
+import com.hoerire.tools.okia.message.ContentBlock
+
+
+sealed interface LlmStreamEvent {
+    data object RoundStarted : LlmStreamEvent
+
+    data class TextDelta(
+        val delta: String,
+        val fullText: String,
+        val charsPerSecond: Float? = null,
+        /** 段起点：fullText 为新文本段坐标（从头累计），消费端据此重置段内状态（节流器等）。 */
+        val isSegmentStart: Boolean = false,
+    ) : LlmStreamEvent
+
+    /** 思考块开始/进行中：id 为回合内由 Mapper 分配的单调块标识（OKIA index 跨轮复用，不可作身份），text 为当前全量。 */
+    data class ThinkingStarted(
+        val id: Int,
+        val text: String,
+    ) : LlmStreamEvent
+
+    /** 思考块完成（含被掐中断）：id 同上，text 为最终全量；宿主据此把 [Thinking] 切成 [Thought]。 */
+    data class ThinkingEnded(
+        val id: Int,
+        val text: String,
+    ) : LlmStreamEvent
+
+    data class ToolRunning(
+        val call: ToolCallStatus,
+    ) : LlmStreamEvent
+
+    /** 工具调用参数流式构建中：仅名字已知、参数未完整。UI 以 Running 占位（转圈、不可展开），
+     *  后续 [ToolRunning] 按 callId 原地更新为完整信息。 */
+    data class ToolPending(
+        val call: ToolCallStatus,
+    ) : LlmStreamEvent
+
+    data class ToolSucceeded(
+        val call: ToolCallStatus,
+        val outputText: String? = null,
+        /** 工具返回的图片引用（view_image / screenshot 等），path 指向 image_cache 落盘文件。 */
+        val images: List<ContentBlock.Image> = emptyList(),
+    ) : LlmStreamEvent
+
+    data class ToolFailed(
+        val call: ToolCallStatus,
+        val message: String,
+        val resultText: String? = null,
+    ) : LlmStreamEvent
+
+    data class Error(
+        /** 原始错误文本；null = 无可用原文，消费端按 code/兜底文案渲染。 */
+        val message: String?,
+        val throwable: Throwable? = null,
+        val code: LlmErrorCode? = null,
+        /** RetryExhausted 专属：已耗尽的重试次数（来自 RetryScheduled 事件，非字符串解析）。 */
+        val attempts: Int? = null,
+    ) : LlmStreamEvent
+
+    /**
+     * 传输层自动重试已排定（瞬时状态，不落盘）。UI 展示 retry 卡片，
+     * 下一个流事件到达即清除。reason 为原始错误文本（英文，来自上游/传输层）。
+     */
+    data class Retrying(
+        val attempt: Int,
+        val maxAttempts: Int,
+        val delayMs: Long,
+        val reason: String,
+    ) : LlmStreamEvent
+
+    /** 单次响应记账上报（每步一次）：回合内累加，供消息底栏统计。 */
+    data class UsageReported(
+        val inputTokens: Long,
+        val outputTokens: Long,
+        val cacheReadTokens: Long,
+    ) : LlmStreamEvent
+
+    /** 回合正常结束（纯终态标记；显示文本一律以 TextDelta 累积为准）。 */
+    data object Completed : LlmStreamEvent
+}
+
+enum class LlmErrorCode {
+    ConfigRequired,
+    TurnConflict,
+    Auth,
+    Quota,
+    RateLimit,
+    Overloaded,
+    Transport,
+    Parse,
+    RetryExhausted,
+    HookFailed,
+    ToolExecutionFailed,
+    IdleTimeout,
+    OutputTruncated,
+    Repetition,
+}
+
+data class ToolCallStatus(
+    val callId: String? = null,
+    val name: String,
+    val label: String = name,
+    val kind: ToolCallKind = ToolCallKind.Unknown,
+    /** 工具调用参数原始 JSON（进程内透传，UI 侧按工具名提取摘要预览；宿主路径不使用）。 */
+    val argumentsJson: String? = null,
+)
+
+enum class ToolCallKind {
+    Local,
+    Unknown,
+}

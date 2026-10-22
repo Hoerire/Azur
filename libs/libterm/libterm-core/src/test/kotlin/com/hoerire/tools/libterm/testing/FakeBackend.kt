@@ -1,0 +1,108 @@
+package com.hoerire.tools.libterm.testing
+
+import com.hoerire.tools.libterm.BackendStartResult
+import com.hoerire.tools.libterm.Clock
+import com.hoerire.tools.libterm.OutputChunk
+import com.hoerire.tools.libterm.OutputStream
+import com.hoerire.tools.libterm.SendResult
+import com.hoerire.tools.libterm.TerminalBackend
+import com.hoerire.tools.libterm.TerminalBytes
+import com.hoerire.tools.libterm.TerminalFailure
+import com.hoerire.tools.libterm.TerminalIdentity
+import com.hoerire.tools.libterm.TerminalOpenOptions
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
+
+class FakeBackend(
+    override val identity: TerminalIdentity,
+    private val clock: Clock = FakeClock(),
+) : TerminalBackend {
+    private val outputEvents = Channel<OutputChunk>(capacity = Channel.UNLIMITED)
+    private val recordedWrites = mutableListOf<TerminalBytes>()
+    private val exitResult = CompletableDeferred<TerminalFailure?>()
+
+    private var startFailure: TerminalFailure? = null
+
+    override val output: Flow<OutputChunk> = outputEvents.receiveAsFlow()
+
+    val writes: List<TerminalBytes>
+        get() = recordedWrites
+
+    var closeCallCount: Int = 0
+        private set
+
+    var isClosed: Boolean = false
+        private set
+
+    var startCallCount: Int = 0
+        private set
+
+    override suspend fun start(openOptions: TerminalOpenOptions): BackendStartResult {
+        startCallCount += 1
+        val failure = startFailure
+        return if (failure == null) {
+            BackendStartResult.Started
+        } else {
+            BackendStartResult.Failed(failure)
+        }
+    }
+
+    override suspend fun send(input: TerminalBytes): SendResult {
+        check(!isClosed) { "FakeBackend is closed" }
+        recordedWrites += input
+        return SendResult.Sent
+    }
+
+    override suspend fun close() {
+        closeCallCount += 1
+        isClosed = true
+    }
+
+    override suspend fun awaitExit(): TerminalFailure? = exitResult.await()
+
+    private fun emitOutput(chunk: OutputChunk): Boolean = outputEvents.trySend(chunk).isSuccess
+
+    fun emitStdout(bytes: TerminalBytes): Boolean {
+        return emitOutput(
+            OutputChunk(
+                stream = OutputStream.STDOUT,
+                bytes = bytes,
+                timestampMillis = clock.nowMillis(),
+            ),
+        )
+    }
+
+    fun emitStderr(bytes: TerminalBytes): Boolean {
+        return emitOutput(
+            OutputChunk(
+                stream = OutputStream.STDERR,
+                bytes = bytes,
+                timestampMillis = clock.nowMillis(),
+            ),
+        )
+    }
+
+    fun emitStdout(bytes: ByteArray): Boolean = emitStdout(TerminalBytes.of(bytes))
+
+    fun emitStderr(bytes: ByteArray): Boolean = emitStderr(TerminalBytes.of(bytes))
+
+    fun failOnStart(failure: TerminalFailure) {
+        startFailure = failure
+    }
+
+    fun finishNormally() {
+        completeExit(null)
+    }
+
+    fun terminateWithFailure(failure: TerminalFailure) {
+        completeExit(failure)
+    }
+
+    private fun completeExit(result: TerminalFailure?) {
+        if (!exitResult.isCompleted) {
+            exitResult.complete(result)
+        }
+    }
+}

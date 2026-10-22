@@ -1,0 +1,91 @@
+package com.hoerire.tools.zafiro.business.application
+
+import android.app.Activity
+import android.app.Application
+import androidx.activity.result.ActivityResultLauncher
+
+/** 系统运行时权限框的结果。 */
+enum class RuntimeDialogResult {
+    GRANTED,
+    DENIED,
+
+    /** 框没弹成（无前台 / launcher 拉不起来）：本次无结果，不是用户拒绝。 */
+    NOT_SHOWN,
+}
+
+/**
+ * 应用级前台能力出口：需要 Activity 才能做的事（跳设置页、弹系统权限框、等前台）
+ * 全部经这里的悬挂式能力方法，业务方与权限引擎不再直连 Activity API。
+ *
+ * 前台 Activity 跟踪由实现侧经 Application.registerActivityLifecycleCallbacks
+ * 自动维护，确定性设置/清空，不靠 WeakReference 的 GC 时机。
+ *
+ * 运行时权限框是唯一的系统权限弹窗：overlay / accessibility / all-files 都由 shell
+ * 通道或跳设置页解决，而预注册 launcher 只有 Activity 能做，所以这里保留这一个具体方法，
+ * 不抽象成通用的权限弹窗分派。
+ */
+interface ApplicationService {
+
+    /** 应用上下文：建 NotificationManager、读资源等不需要前台的场景用它。 */
+    fun getApplication(): Application // TODO 看看 ContextProvider 的代码，在那里打个注释，以后把它删掉，然后把 context provider 里面比较好的机制学习一下，跟我讨论一下。
+
+    /**
+     * 当前前台 Activity；后台或无前台时为 null。
+     * 调用方每次用每次判空，不要缓存；返回前已过滤 finishing/destroyed。
+     */
+    fun getActivity(): Activity?
+
+    /**
+     * 等一次前台。已在前台立即返回，否则挂起至 resume 代数推进或超时。
+     * 跳设置页前/后“等事件”的场景用它，而不是轮询 getActivity()。
+     */
+    suspend fun awaitForeground(timeoutMs: Long): Activity?
+
+    /**
+     * 经 MainActivity 预注册的运行时权限 launcher 弹一次系统框并等结果。
+     * 一次只申请一个权限：结果槽只有一个，契约与实现同宽。多个权限由调用方逐个申请（串行弹窗）。
+     * launcher 必须在 Activity STARTED 前注册，因此仍由 MainActivity 预注册后装进来，
+     * 实现侧只持有结果路由，不认识 launcher 的注册细节。
+     */
+    suspend fun requestRuntimePermission(permission: String): RuntimeDialogResult
+
+    /**
+     * 等下一次 resume（用户从设置页/系统框回来）。超时或取消返回 false。
+     * 跳设置页“launch → 等回来 → 复查状态”语义用它，而不是各调用方自建计数器。
+     */
+    suspend fun awaitNextResume(timeoutMs: Long): Boolean
+
+    /** 当前是否正处于主对话界面（HomeChatScreen / HomePage）。 */
+    fun isHomeChatActive(): Boolean = false
+
+    /** 设置当前主对话界面的活跃态（由 HomePage 维护生命周期）。 */
+    fun setHomeChatActive(active: Boolean) {}
+
+    /**
+     * 拉起应用到前台的主 Activity。
+     * @param targetConversationId 如果不为空，则请求打开此会话（仅当处于主对话页时切换，不在主对话页时仅拉前台）。
+     */
+    fun launchMainActivity(targetConversationId: String? = null) {}
+
+    /**
+     * 处理进入应用时的导航意图（由 MainActivity onCreate / onNewIntent 统一调用）。
+     */
+    fun handleNavigationIntent(targetConversationId: String?) {}
+
+    /**
+     * 观察会话切换请求（仅当在主对话页触发时发射）。HomePage / ZafiroApp 监听此 flow 执行切会话。
+     * 每个元素只投递给一个收集者一次；Activity 重建不会收到已消费的旧目标。
+     */
+    val conversationSwitchRequests: kotlinx.coroutines.flow.Flow<String>
+        get() = kotlinx.coroutines.flow.emptyFlow()
+
+    /** 装配方法（仅 MainActivity 调）：预注册的 launcher 在 STARTED 前装进来。 */
+    fun installPermissionLauncher(launcher: ActivityResultLauncher<String>)
+
+    /** 装配方法（仅 MainActivity 调）：launcher 结果回调转发。 */
+    fun onRuntimePermissionResult(granted: Boolean)
+
+    companion object {
+        const val EXTRA_TARGET_CONVERSATION_ID = "com.hoerire.tools.zafiro.extra.TARGET_CONVERSATION_ID"
+    }
+}

@@ -1,0 +1,149 @@
+package com.hoerire.tools.zafiro.repo
+
+import com.hoerire.tools.zafiro.settings.model.RuntimeLoadedSkill
+import com.hoerire.tools.zafiro.settings.model.RuntimeSkillMetadata
+import com.hoerire.tools.zafiro.settings.model.RuntimeSkillValidation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
+import java.io.InputStream
+import java.security.MessageDigest
+
+class SkillApi internal constructor(
+    private val repo: XRepo,
+) {
+    suspend fun listAll(): List<RuntimeSkillMetadata> {
+        return repository().listAll()
+    }
+
+    suspend fun listEnabled(): List<RuntimeSkillMetadata> {
+        return repository().listEnabled()
+    }
+
+    suspend fun getDetail(id: String): RuntimeLoadedSkill? {
+        return repository().load(id)
+    }
+
+    suspend fun saveContent(id: String, content: String): RuntimeSkillValidation? {
+        return repository().saveContent(id, content)
+    }
+
+    suspend fun setEnabled(id: String, enabled: Boolean): RuntimeSkillValidation? {
+        return repository().setEnabled(id, enabled)
+    }
+
+    suspend fun delete(id: String): RuntimeSkillValidation? {
+        return repository().delete(id)
+    }
+
+    suspend fun importSkill(sourceDir: File, overwrite: Boolean = false): SkillImportResult {
+        return withContext(Dispatchers.IO) {
+            repository().importSkill(sourceDir, overwrite)
+        }
+    }
+
+    /**
+     * Seeds default skills bundled in assets into the skills directory.
+     *
+     * Copies a skill when its target directory does not exist. When the target
+     * already exists, the skill is updated only if the user has not modified
+     * it: a `.seed` sidecar records the sha256 of the last seeded SKILL.md, and
+     * the current file is overwritten only while its hash still matches.
+     * A missing `.seed` marks a pre-sidecar install and is updated once.
+     */
+    suspend fun seedDefaults() {
+        withContext(Dispatchers.IO) {
+            val context = repo.context()
+            val skillsTargetDir = File(context.filesDir, SKILLS_DIR_NAME)
+            val assetEntries = try {
+                context.assets.list(DEFAULT_SKILLS_ASSET_PATH)?.toList().orEmpty()
+            } catch (_: IOException) {
+                emptyList()
+            }
+            for (skillId in assetEntries) {
+                val targetDir = File(skillsTargetDir, skillId)
+                val assetDir = "$DEFAULT_SKILLS_ASSET_PATH/$skillId"
+                val files = try {
+                    context.assets.list(assetDir)?.toList().orEmpty()
+                } catch (_: IOException) {
+                    emptyList()
+                }
+                val openAsset: (String) -> InputStream? = { name ->
+                    runCatching { context.assets.open("$assetDir/$name") }.getOrNull()
+                }
+                reseedSkill(targetDir, files, openAsset)
+            }
+        }
+    }
+
+    private suspend fun repository(): SkillFileRepository {
+        val context = repo.context()
+        return SkillFileRepository(File(context.filesDir, SKILLS_DIR_NAME))
+    }
+
+    companion object {
+        const val SKILLS_DIR_NAME = "skills"
+        private const val DEFAULT_SKILLS_ASSET_PATH = "skills"
+        private const val SEED_MARKER_FILE_NAME = ".seed"
+        private const val SKILL_FILE_NAME = "SKILL.md"
+
+        /**
+         * Seeds or updates one default skill in [targetDir].
+         *
+         * Copies the skill when its target directory does not exist. When the target
+         * already exists, the skill is updated only if the user has not modified
+         * it: a `.seed` sidecar records the sha256 of the last seeded SKILL.md, and
+         * the current file is overwritten only while its hash still matches.
+         * A missing `.seed` marks a pre-sidecar install and is updated once.
+         */
+        internal fun reseedSkill(
+            targetDir: File,
+            assetFiles: List<String>,
+            openAsset: (String) -> InputStream?,
+        ) {
+            val seedFile = File(targetDir, SEED_MARKER_FILE_NAME)
+            val skillFile = File(targetDir, SKILL_FILE_NAME)
+
+            if (targetDir.isDirectory) {
+                // Update only an unmodified install: current content must still
+                // match the last seeded hash (a missing marker counts as unmodified).
+                val marker = seedFile.takeIf { it.isFile }?.readText(Charsets.UTF_8)?.trim()
+                val currentHash = hashFile(skillFile)
+                val unmodified = marker == null || currentHash != null && marker == currentHash
+                if (!unmodified) return
+            } else {
+                targetDir.mkdirs()
+            }
+
+            try {
+                for (fileName in assetFiles) {
+                    val input = openAsset(fileName) ?: continue
+                    input.use {
+                        File(targetDir, fileName).outputStream().use { output ->
+                            it.copyTo(output)
+                        }
+                    }
+                }
+                hashFile(skillFile)?.let { seedFile.writeText(it) }
+            } catch (_: IOException) {
+                // ponytail: partial copy stays — next seed run re-copies unmodified installs
+            }
+        }
+
+        private fun hashFile(file: File): String? {
+            return runCatching {
+                val digest = MessageDigest.getInstance("SHA-256")
+                file.inputStream().use { input ->
+                    val buffer = ByteArray(8 * 1024)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        digest.update(buffer, 0, read)
+                    }
+                }
+                digest.digest().joinToString("") { "%02x".format(it) }
+            }.getOrNull()
+        }
+    }
+}

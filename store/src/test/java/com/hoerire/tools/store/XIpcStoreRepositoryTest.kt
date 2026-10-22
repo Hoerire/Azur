@@ -1,0 +1,113 @@
+package com.hoerire.tools.store
+
+import android.content.Context
+import android.content.ContextWrapper
+import kotlinx.coroutines.test.runTest
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
+
+class XIpcStoreRepositoryTest {
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun missingFileReturnsDescriptorDefaultJson() = runTest {
+        val context = testContext()
+
+        val json =
+            XIpcStoreRepository.readJson(context, StoreDescriptorRegistry.AGENT_MAIN_MEMORY_ID)
+
+        assertEquals("""{"memories":[]}""", json)
+    }
+
+    @Test
+    fun blankFileReturnsDescriptorDefaultJson() = runTest {
+        val context = testContext()
+        val descriptor = StoreDescriptorRegistry.require(StoreDescriptorRegistry.TOOLS_PY_ID)
+        ConfigPersistence.fileFor(context, descriptor).writeUtf8("   ")
+
+        val json = XIpcStoreRepository.readJson(context, StoreDescriptorRegistry.TOOLS_PY_ID)
+
+        assertEquals("""{"tools":[]}""", json)
+    }
+
+    @Test
+    fun brokenJsonReturnsDescriptorDefaultJsonOnRead() = runTest {
+        val context = testContext()
+        val descriptor =
+            StoreDescriptorRegistry.require(StoreDescriptorRegistry.TOOLS_PY_ID)
+        ConfigPersistence.fileFor(context, descriptor).writeUtf8("{broken")
+
+        val json =
+            XIpcStoreRepository.readJson(context, StoreDescriptorRegistry.TOOLS_PY_ID)
+
+        assertEquals("""{"tools":[]}""", json)
+    }
+
+    @Test
+    fun unknownStoreIdDoesNotCreateFile() = runTest {
+        val context = testContext()
+
+        val json = XIpcStoreRepository.readJson(context, "unknown.store")
+        val error = try {
+            XIpcStoreRepository.mutateJson(context, "unknown.store", "enabled", "true")
+            null
+        } catch (e: IllegalArgumentException) {
+            e
+        }
+
+        assertEquals("{}", json)
+        assertNotNull(error)
+        assertFalse(context.filesDir.walkTopDown().any { it.isFile })
+    }
+
+    @Test
+    fun mutateWritesOnlyTargetStoreFile() = runTest {
+        val context = testContext()
+        val targetDescriptor =
+            StoreDescriptorRegistry.require(StoreDescriptorRegistry.TOOLS_BUILTIN_ID)
+        val otherDescriptor =
+            StoreDescriptorRegistry.require(StoreDescriptorRegistry.TOOLS_PY_ID)
+        val otherFile = ConfigPersistence.fileFor(context, otherDescriptor)
+        otherFile.writeUtf8("""{"tools":[]}""")
+
+        val updated = XIpcStoreRepository.mutateJson(
+            context = context,
+            storeId = StoreDescriptorRegistry.TOOLS_BUILTIN_ID,
+            path = "enabled.launch_app",
+            valueJson = "true"
+        )
+
+        val targetFile = ConfigPersistence.fileFor(context, targetDescriptor)
+        assertTrue(targetFile.exists())
+        assertEquals(updated, targetFile.readText())
+        assertEquals(
+            true, JSONObject(updated)
+                .getJSONObject("enabled")
+                .getBoolean("launch_app")
+        )
+        assertEquals("""{"tools":[]}""", otherFile.readText())
+    }
+
+    private fun testContext(): Context {
+        val filesDir = temporaryFolder.newFolder()
+        return object : ContextWrapper(null) {
+            override fun getFilesDir(): File = filesDir
+            override fun getApplicationContext(): Context = this
+            override fun getPackageName(): String = "com.hoerire.tools.zafiro"
+        }
+    }
+
+    private fun File.writeUtf8(text: String) {
+        parentFile?.mkdirs()
+        writeText(text, Charsets.UTF_8)
+    }
+}

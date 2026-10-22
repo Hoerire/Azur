@@ -1,0 +1,3 @@
+gradle.afterProject { p ->
+  p.tasks.matching { it.name == 'lintVitalRelease' || it.name == 'lintVitalAnalyzeRelease' }.configureEach { it.enabled = false }
+}

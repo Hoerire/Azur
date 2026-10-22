@@ -1,0 +1,1200 @@
+package com.hoerire.tools.zafiro.repo
+
+import android.content.Context
+import com.hoerire.tools.logging.Logger
+import com.hoerire.tools.store.StoreDescriptorRegistry
+import com.hoerire.tools.zafiro.util.AppContext
+import com.hoerire.tools.zafiro.app.R
+import com.hoerire.tools.zafiro.chat.agentic.ToolExecutionPreflight
+import com.hoerire.tools.zafiro.chat.agentic.buildin.BuiltinToolRegistry
+import com.hoerire.tools.zafiro.settings.MemoryMutationResult
+import com.hoerire.tools.zafiro.settings.model.RepetitionSensitivity
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import java.io.File
+import java.util.UUID
+import com.hoerire.tools.zafiro.settings.model.RuntimeAgentMemoryMode as AgentMemoryMode
+import com.hoerire.tools.zafiro.settings.model.RuntimeAgentProfile as AgentProfile
+import com.hoerire.tools.zafiro.settings.model.RuntimeAgentValidation as AgentValidation
+import com.hoerire.tools.zafiro.settings.model.RuntimeBuiltinToolSetting as BuiltinToolSetting
+import com.hoerire.tools.zafiro.settings.model.RuntimeCustomPyTool as CustomPyTool
+import com.hoerire.tools.zafiro.settings.model.RuntimeExecutionRule as ExecutionRule
+import com.hoerire.tools.zafiro.settings.model.RuntimeExecutionRuleEnabledMode as ExecutionRuleEnabledMode
+import com.hoerire.tools.zafiro.settings.model.RuntimeToolValidation as ToolValidation
+import com.hoerire.tools.zafiro.settings.model.RuntimeToolValidationOrigin as ToolValidationOrigin
+
+object XRepo {
+    private const val LOG_TAG = "zafiro_XRepo"
+
+    val customPyTools: CustomPyToolApi = CustomPyToolApi(this)
+    val builtinTools: BuiltinToolApi = BuiltinToolApi(this)
+    val memory: MemoryApi = MemoryApi(this)
+    val web: WebSettingsApi = WebSettingsApi()
+    val executionRules: ExecutionRulesApi = ExecutionRulesApi(this)
+    val agents: AgentApi = AgentApi(this)
+    val skills: SkillApi = SkillApi(this)
+    val storage: StorageApi = StorageApi(this)
+    val llmConfigs = LlmConfigsApi(this)
+    val cloudFacts = CloudFactsApi(this)
+
+    private val writeMutex = Mutex()
+    private var appContext: Context? = null
+    private var installedStoreForTest = false
+    internal var store: DomainSettingsStore = XIpcDomainSettingsStore(null)
+        private set
+
+    internal fun init(
+        context: Context,
+        store: DomainSettingsStore = XIpcDomainSettingsStore(null)
+    ) {
+        if (appContext == null) {
+            appContext = context.applicationContext ?: context
+            if (!installedStoreForTest) {
+                this.store = store
+            }
+        }
+    }
+
+    internal fun installStoreForTest(store: DomainSettingsStore) {
+        this.store = store
+        installedStoreForTest = true
+    }
+
+    internal fun resetForTest() {
+        appContext = null
+        store = XIpcDomainSettingsStore(null)
+        installedStoreForTest = false
+        // 响应式 flow 是进程内单例状态：重置回声明默认值，测试互不污染。
+        keepScreenOnField.flow.value = true
+        alwaysShowMessageActionsField.flow.value = true
+        floatingBallEnabledField.flow.value = false
+        residentNotificationEnabledField.flow.value = false
+        turnNotificationEnabledField.flow.value = false
+        floatingBallAutoExpandField.flow.value = true
+        llmConfigs.resetForTest()
+    }
+
+    internal suspend fun context(): Context {
+        appContext?.let { return it }
+        val context = AppContext.await()
+        init(context)
+        return appContext ?: context
+    }
+
+    internal suspend fun readJson(storeId: String): String {
+        val startedAtMs = System.currentTimeMillis()
+        val json = store.readJson(context(), storeId)
+        Logger.d(
+            LOG_TAG,
+            "readJson storeId=$storeId jsonLength=${json.length} " +
+                    "elapsedMs=${System.currentTimeMillis() - startedAtMs}"
+        )
+        return json
+    }
+
+    internal suspend fun writeJson(storeId: String, json: String): Boolean {
+        val startedAtMs = System.currentTimeMillis()
+        val result = writeMutex.withLock {
+            writeJsonLocked(context(), storeId, json)
+        }
+        Logger.i(
+            LOG_TAG,
+            "writeJson storeId=$storeId result=$result jsonLength=${json.length} " +
+                    "elapsedMs=${System.currentTimeMillis() - startedAtMs}"
+        )
+        return result
+    }
+
+    internal suspend fun updateJson(storeId: String, transform: (String) -> String): Boolean {
+        val startedAtMs = System.currentTimeMillis()
+        val result = writeMutex.withLock {
+            val context = context()
+            val latest = store.readJson(context, storeId)
+            writeJsonLocked(context, storeId, transform(latest))
+        }
+        Logger.d(
+            LOG_TAG,
+            "updateJson storeId=$storeId result=$result " +
+                    "elapsedMs=${System.currentTimeMillis() - startedAtMs}"
+        )
+        return result
+    }
+
+    internal suspend fun updateJsonOrFalse(
+        storeId: String,
+        transform: (String) -> String?
+    ): Boolean {
+        val startedAtMs = System.currentTimeMillis()
+        val result = writeMutex.withLock {
+            val context = context()
+            val latest = store.readJson(context, storeId)
+            val updated = transform(latest) ?: return@withLock false
+            writeJsonLocked(context, storeId, updated)
+        }
+        Logger.d(
+            LOG_TAG,
+            "updateJsonOrFalse storeId=$storeId result=$result " +
+                    "elapsedMs=${System.currentTimeMillis() - startedAtMs}"
+        )
+        return result
+    }
+
+    private suspend fun writeJsonLocked(context: Context, storeId: String, json: String): Boolean {
+        if (store.writeJsonFromOwner(context, storeId, json)) return true
+        if (store.writeJsonFromOwner(context, storeId, json)) return true
+        Logger.e(LOG_TAG, "write settings store failed storeId=$storeId jsonLength=${json.length}")
+        return false
+    }
+
+    suspend fun tryPutDefaultSettings(): Boolean {
+        val startedAtMs = System.currentTimeMillis()
+        val result = writeMutex.withLock {
+            val context = context()
+            val appState = AppStateSettingsCodec.parse(
+                store.readJson(
+                    context,
+                    StoreDescriptorRegistry.APP_STATE_ID
+                )
+            )
+            if (appState.onboardingCompleted) {
+                return@withLock false
+            }
+            writeJsonLocked(
+                context,
+                StoreDescriptorRegistry.LLM_CONFIGS_ID,
+                LlmConfigsSettingsCodec.encode(
+                    LlmConfigsDocument(
+                        prompt = LocalSettingsDefaults.DEFAULT_SYSTEM_PROMPT.trimIndent(),
+                    )
+                ),
+            )
+            writeJsonLocked(
+                context,
+                StoreDescriptorRegistry.AGENT_MAIN_MEMORY_ID,
+                MemorySettingsCodec.encodeMemories(
+                    LocalSettingsDefaults.defaultMemories(context),
+                    System.currentTimeMillis()
+                ),
+            )
+            writeJsonLocked(
+                context,
+                StoreDescriptorRegistry.AGENT_REGISTRY_ID,
+                AgentSettingsCodec.encodeRegistry(listOf(defaultMainAgentProfile(System.currentTimeMillis()))),
+            )
+            writeJsonLocked(
+                context,
+                StoreDescriptorRegistry.RULES_EXECUTION_ID,
+                RuleSettingsCodec.encodeExecutionRules(LocalSettingsDefaults.defaultExecutionRules),
+            )
+            true
+        }
+        Logger.i(
+            LOG_TAG,
+            "tryPutDefaultSettings result=$result " +
+                    "reason=${if (result) "initialized" else "alreadyOnboarded"} " +
+                    "elapsedMs=${System.currentTimeMillis() - startedAtMs}"
+        )
+        return result
+    }
+
+    /**
+     * 启动时补齐缺失的 seed py tools（按 name 判缺）。
+     *
+     * 只追加用户列表里没有的工具，不覆盖用户对同名工具的修改；
+     * 用户已删除的 seed 会被复活（tools 无删除墓碑，无法区分"未装过"与"删过"）。
+     */
+    // ---- app-state 单字段读写底座：新增设置只加一行字段声明，读写走通用函数 ----
+    // 全文档 read-modify-write（writeMutex 内串行，无 lost-update）；耗时日志由
+    // readJson/updateJson 中心层统一打，逐 setter 不再重复。
+
+    /** 普通字段：读盘直取，写盘走通用 read-modify-write。 */
+    private class PlainAppStateField<T>(
+        private val select: AppStateSettings.() -> T,
+        private val update: AppStateSettings.(T) -> AppStateSettings,
+        private val normalize: (T) -> T = { it },
+    ) {
+        suspend fun get(): T = XRepo.readAppStateField(select)
+
+        suspend fun set(value: T) = XRepo.writeAppStateField(normalize(value), update)
+    }
+
+    /**
+     * 响应式字段：附带进程内热更新 flow。构造时向 hydrateSteps 自注册，
+     * hydrateSettings 只需遍历执行，新增响应式设置无需手动登记。
+     * 语义与旧手写版一致：读时回填 flow，写时先同步 flow 再落盘。
+     */
+    private class ReactiveAppStateField<T>(
+        default: T,
+        private val select: AppStateSettings.() -> T,
+        private val update: AppStateSettings.(T) -> AppStateSettings,
+    ) {
+        val flow = MutableStateFlow(default)
+
+        init {
+            XRepo.hydrateSteps.add { flow.value = XRepo.readAppStateField(select) }
+        }
+
+        suspend fun get(): T = XRepo.readAppStateField(select).also { flow.value = it }
+
+        suspend fun set(value: T) {
+            flow.value = value
+            XRepo.writeAppStateField(value, update)
+        }
+    }
+
+    private suspend fun <T> readAppStateField(select: AppStateSettings.() -> T): T {
+        return AppStateSettingsCodec.parse(readJson(StoreDescriptorRegistry.APP_STATE_ID)).select()
+    }
+
+    private suspend fun <T> writeAppStateField(
+        value: T,
+        update: AppStateSettings.(T) -> AppStateSettings,
+    ) {
+        updateJson(StoreDescriptorRegistry.APP_STATE_ID) { json ->
+            AppStateSettingsCodec.encode(AppStateSettingsCodec.parse(json).update(value))
+        }
+    }
+
+    private val hydrateSteps = mutableListOf<suspend () -> Unit>()
+
+    private val onboardingCompletedField = PlainAppStateField(
+        select = { onboardingCompleted },
+        update = { copy(onboardingCompleted = it) },
+    )
+    private val lastOpenedConversationIdField = PlainAppStateField(
+        select = { lastOpenedConversationId },
+        update = { copy(lastOpenedConversationId = it) },
+        normalize = { it.trim() },
+    )
+    private val languageTagField = PlainAppStateField(
+        select = { languageTag },
+        update = { copy(languageTag = it) },
+        normalize = { it.trim() },
+    )
+    private val loadLastConversationOnStartupField = PlainAppStateField(
+        select = { loadLastConversationOnStartup },
+        update = { copy(loadLastConversationOnStartup = it) },
+    )
+    private val llmIdleTimeoutSecondsField = PlainAppStateField(
+        select = { llmIdleTimeoutSeconds },
+        update = { copy(llmIdleTimeoutSeconds = it) },
+    )
+    private val llmRetryMaxAttemptsField = PlainAppStateField(
+        select = { llmRetryMaxAttempts },
+        update = { copy(llmRetryMaxAttempts = it) },
+    )
+    private val repetitionSensitivityField = PlainAppStateField(
+        select = { repetitionSensitivity },
+        update = { copy(repetitionSensitivity = it) },
+    )
+    private val contextCompactionThresholdPercentField = PlainAppStateField(
+        select = { contextCompactionThresholdPercent },
+        update = { copy(contextCompactionThresholdPercent = it) },
+    )
+    private val draftTextField = PlainAppStateField(
+        select = { draftText },
+        update = { copy(draftText = it) },
+    )
+
+    suspend fun onboardingCompleted(): Boolean = onboardingCompletedField.get()
+
+    suspend fun setOnboardingCompleted(value: Boolean) = onboardingCompletedField.set(value)
+
+    suspend fun lastOpenedConversationId(): String = lastOpenedConversationIdField.get()
+
+    suspend fun setLastOpenedConversationId(value: String) =
+        lastOpenedConversationIdField.set(value)
+
+    suspend fun languageTag(): String = languageTagField.get()
+
+    suspend fun setLanguageTag(tag: String) = languageTagField.set(tag)
+
+    suspend fun loadLastConversationOnStartup(): Boolean = loadLastConversationOnStartupField.get()
+
+    suspend fun llmIdleTimeoutSeconds(): Long = llmIdleTimeoutSecondsField.get()
+
+    suspend fun setLlmIdleTimeoutSeconds(value: Long) = llmIdleTimeoutSecondsField.set(value)
+
+    suspend fun llmRetryMaxAttempts(): Int = llmRetryMaxAttemptsField.get()
+
+    suspend fun setLlmRetryMaxAttempts(value: Int) = llmRetryMaxAttemptsField.set(value)
+
+    suspend fun repetitionSensitivity(): RepetitionSensitivity =
+        RepetitionSensitivity.fromWire(repetitionSensitivityField.get())
+
+    suspend fun setRepetitionSensitivity(value: RepetitionSensitivity) =
+        repetitionSensitivityField.set(value.wireValue)
+
+    suspend fun contextCompactionThresholdPercent(): Int =
+        contextCompactionThresholdPercentField.get()
+
+    suspend fun setContextCompactionThresholdPercent(value: Int) =
+        contextCompactionThresholdPercentField.set(value)
+    suspend fun setLoadLastConversationOnStartup(value: Boolean) =
+        loadLastConversationOnStartupField.set(value)
+
+    /** 全局输入框草稿文本（跨会话/新建会话保持，冷启动自动恢复）。 */
+    suspend fun draftText(): String = draftTextField.get()
+
+    suspend fun setDraftText(text: String) = draftTextField.set(text)
+
+    /** Keep Alive 设置的进程内热更新通道：读时回填初值，写时同步。 */
+    private val keepScreenOnField = ReactiveAppStateField(
+        default = true,
+        select = { keepScreenOn },
+        update = { copy(keepScreenOn = it) },
+    )
+    val keepScreenOnSetting: MutableStateFlow<Boolean> get() = keepScreenOnField.flow
+
+    suspend fun keepScreenOn(): Boolean = keepScreenOnField.get()
+
+    suspend fun setKeepScreenOn(value: Boolean) = keepScreenOnField.set(value)
+
+    /** 消息操作行常显开关的进程内热更新通道：读时回填初值，写时同步。 */
+    private val alwaysShowMessageActionsField = ReactiveAppStateField(
+        default = true,
+        select = { alwaysShowMessageActions },
+        update = { copy(alwaysShowMessageActions = it) },
+    )
+    val alwaysShowMessageActionsSetting: MutableStateFlow<Boolean>
+        get() = alwaysShowMessageActionsField.flow
+
+    suspend fun alwaysShowMessageActions(): Boolean = alwaysShowMessageActionsField.get()
+
+    suspend fun setAlwaysShowMessageActions(value: Boolean) =
+        alwaysShowMessageActionsField.set(value)
+
+
+    /** 悬浮球开关的进程内热更新通道：读时回填初值，写时同步。 */
+    private val floatingBallEnabledField = ReactiveAppStateField(
+        default = false,
+        select = { floatingBallEnabled },
+        update = { copy(floatingBallEnabled = it) },
+    )
+    val floatingBallEnabledSetting: MutableStateFlow<Boolean>
+        get() = floatingBallEnabledField.flow
+
+    suspend fun floatingBallEnabled(): Boolean = floatingBallEnabledField.get()
+
+    suspend fun setFloatingBallEnabled(value: Boolean) = floatingBallEnabledField.set(value)
+
+    /** 常驻通知栏开关的进程内热更新通道 */
+    private val residentNotificationEnabledField = ReactiveAppStateField(
+        default = false,
+        select = { residentNotificationEnabled },
+        update = { copy(residentNotificationEnabled = it) },
+    )
+    val residentNotificationEnabledSetting: MutableStateFlow<Boolean>
+        get() = residentNotificationEnabledField.flow
+
+    suspend fun residentNotificationEnabled(): Boolean = residentNotificationEnabledField.get()
+
+    suspend fun setResidentNotificationEnabled(value: Boolean) =
+        residentNotificationEnabledField.set(value)
+
+    /** 回合事件通知开关的进程内热更新通道 */
+    private val turnNotificationEnabledField = ReactiveAppStateField(
+        default = false,
+        select = { turnNotificationEnabled },
+        update = { copy(turnNotificationEnabled = it) },
+    )
+    val turnNotificationEnabledSetting: MutableStateFlow<Boolean>
+        get() = turnNotificationEnabledField.flow
+
+    suspend fun turnNotificationEnabled(): Boolean = turnNotificationEnabledField.get()
+
+    suspend fun setTurnNotificationEnabled(value: Boolean) =
+        turnNotificationEnabledField.set(value)
+
+    /** 悬浮球自动展开开关的进程内热更新通道（app 以外的消费方经 XSettings 读）。 */
+    private val floatingBallAutoExpandField = ReactiveAppStateField(
+        default = true,
+        select = { floatingBallAutoExpand },
+        update = { copy(floatingBallAutoExpand = it) },
+    )
+    val floatingBallAutoExpandSetting: MutableStateFlow<Boolean>
+        get() = floatingBallAutoExpandField.flow
+
+    suspend fun floatingBallAutoExpand(): Boolean = floatingBallAutoExpandField.get()
+
+    suspend fun setFloatingBallAutoExpand(value: Boolean) =
+        floatingBallAutoExpandField.set(value)
+
+    /** Markdown 排版缩放比例的进程内热更新通道：基准 1.0f。 */
+    private val markdownScaleField = ReactiveAppStateField(
+        default = 1.0f,
+        select = { markdownScale },
+        update = { copy(markdownScale = it) },
+    )
+    val markdownScaleSetting: MutableStateFlow<Float>
+        get() = markdownScaleField.flow
+
+    suspend fun markdownScale(): Float = markdownScaleField.get()
+
+    suspend fun setMarkdownScale(value: Float) = markdownScaleField.set(value)
+
+    /**
+     * 回填型设置 flow 的统一冷启动回填：flow 初值是猜的默认值，必须有人调一次
+     * 读盘才能对齐真值。MainActivity.onCreate 同步调用。
+     * 响应式字段构造时已自注册到 hydrateSteps，新增无需手动登记。
+     */
+    suspend fun hydrateSettings() {
+        hydrateSteps.forEach { it() }
+    }
+
+    private val themeModeField = PlainAppStateField(
+        select = { themeMode },
+        update = { copy(themeMode = it) },
+    )
+    private val themeSeedColorField = PlainAppStateField(
+        select = { themeSeedColor },
+        update = { copy(themeSeedColor = it) },
+    )
+
+    suspend fun themeMode(): String = themeModeField.get()
+
+    suspend fun setThemeMode(mode: String) = themeModeField.set(mode)
+
+    suspend fun themeSeedColor(): String = themeSeedColorField.get()
+
+    suspend fun setThemeSeedColor(hex: String) = themeSeedColorField.set(hex)
+
+    private val pinnedConversationsField = PlainAppStateField(
+        select = { pinnedConversations },
+        update = { copy(pinnedConversations = it) },
+    )
+
+    internal suspend fun pinnedConversations(): List<PinnedConversation> =
+        pinnedConversationsField.get()
+
+    /**
+     * 置顶/取消置顶一条会话。整个文档 read-modify-write 在 writeMutex 内串行，
+     * 同会话重复置顶只保留最新时刻。
+     */
+    internal suspend fun setConversationPinned(
+        conversationId: String,
+        pinned: Boolean,
+        now: Long = System.currentTimeMillis(),
+    ) {
+        val id = conversationId.trim()
+        if (id.isEmpty()) return
+        updateJson(StoreDescriptorRegistry.APP_STATE_ID) { json ->
+            val state = AppStateSettingsCodec.parse(json)
+            val remaining = state.pinnedConversations.filterNot { it.id == id }
+            val updated = if (pinned) remaining + PinnedConversation(id, now) else remaining
+            AppStateSettingsCodec.encode(state.copy(pinnedConversations = updated))
+        }
+    }
+
+    private val SCHEMA_WEB_SEARCH =
+        """{"type":"object","properties":{"query":{"type":"string"},"engine":{"type":"string","enum":["all","baidu","sogou","ddg"],"description":"search engine; \"all\" (default) merges Baidu + Sogou + DuckDuckGo"},"max_results":{"type":"integer","description":"default: 8"}},"required":["query"]}"""
+
+    // Seed custom py tools 全量列表：新增 seed 时在此追加，
+    // seedPyTools() 每次启动补齐缺失，老用户升级后自动获得新工具。
+    internal fun seedPyToolDefaults(context: Context): List<CustomPyTool> =
+        listOf(
+            seedWebSearchTool(context),
+            seedWebReadTool(context),
+            seedLaunchWechatTool(context),
+            seedInstallApkTool(context),
+            seedDownloadFileTool(context),
+        )
+
+    // Seed custom py tools: code lives in res/raw，此处只负责组装。
+    private fun seedWebSearchTool(context: Context) = CustomPyTool(
+        name = "py_web_search",
+        description = "Search the web (default: multi-engine merge of Baidu + Sogou + DuckDuckGo; or engine=baidu/sogou/ddg). Returns a list of {title, url, snippet}.",
+        schemaJson = SCHEMA_WEB_SEARCH,
+        code = readRawResource(context, R.raw.seed_py_web_search),
+    )
+
+    private val SCHEMA_WEB_READ =
+        """{"type":"object","properties":{"url":{"type":"string","description":"Page URL"},"keyword":{"type":"string","description":"Return only the section around this keyword"},"max_chars":{"type":"integer","description":"Max characters to return (default 6000)"},"timeout":{"type":"integer","description":"HTTP timeout seconds (default 25)"}},"required":["url"]}"""
+
+    // 抓取网页正文：与 py_web_search 配套，搜索只给摘要时读全文。
+    private fun seedWebReadTool(context: Context) = CustomPyTool(
+        name = "py_web_read",
+        description = "Fetch a URL and extract readable article text. Optional keyword returns only the section around it. Companion to py_web_search when snippets are not enough.",
+        schemaJson = SCHEMA_WEB_READ,
+        code = readRawResource(context, R.raw.seed_py_web_read),
+    )
+
+    private fun seedLaunchWechatTool(context: Context) = CustomPyTool(
+        name = "py_launch_wechat",
+        description = "启动微信 (Launch WeChat).",
+        schemaJson = """{"type":"object","properties":{},"required":[]}""",
+        code = readRawResource(context, R.raw.seed_py_launch_wechat),
+    )
+
+    private val SCHEMA_INSTALL_APK =
+        """{"type":"object","properties":{"url":{"type":"string","description":"APK direct URL"},"force":{"type":"boolean","description":"Overwrite install; skip if already installed by default"},"path":{"type":"string","description":"Optional download directory. Defaults to the app private downloads directory. External paths may require storage permission."}},"required":["url"]}"""
+
+    // 下载+安装大 APK 可能超过默认 30s，直接设到上限 120s。
+    // 默认下载目录在播种时烘进脚本（占位符替换）。
+    private fun seedInstallApkTool(context: Context) = CustomPyTool(
+        name = "py_install_apk",
+        description = "Download an APK from a URL and install it via su. The APK is saved to the app private downloads directory before install. Non-force by default: skips if the app is already installed; set force=true to overwrite.",
+        schemaJson = SCHEMA_INSTALL_APK,
+        code = readRawResource(context, R.raw.seed_py_install_apk).replace(
+            "__DEFAULT_DOWNLOAD_DIR__",
+            File(context.filesDir, "downloads/py_install_apk").absolutePath,
+        ),
+        timeoutMs = CustomPyTool.MAX_CUSTOM_PY_TOOL_TIMEOUT_MS,
+    )
+
+    private val SCHEMA_DOWNLOAD_FILE =
+        """{"type":"object","properties":{"url":{"type":"string","description":"URL of the file to download"},"filename":{"type":"string","description":"Optional filename; extracted from URL if omitted"},"path":{"type":"string","description":"Optional download directory. Defaults to the app private downloads directory. External paths may require storage permission."}},"required":["url"]}"""
+
+    // 从 URL 下载文件到私有 downloads 子目录；path 可指定其他目录（外部路径可能需要存储权限）。
+    // 默认目录在播种时烘进脚本（占位符替换），运行时零注入成本。
+    // 执行期存储权限预检由 CustomPyToolExecutor 经 ToolExecutionPreflight.ensurePathAccess 处理：
+    // 沙箱内路径直接放行；命中外部路径时挂起申请 Permission.STORAGE。
+    private fun seedDownloadFileTool(context: Context) = CustomPyTool(
+        name = "py_download_file",
+        description = "Download a file from a URL and return its local file path. By default the file is saved to the app private downloads directory; prefer private directories unless you have a special reason.",
+        schemaJson = SCHEMA_DOWNLOAD_FILE,
+        code = readRawResource(context, R.raw.seed_py_download_file).replace(
+            "__DEFAULT_DOWNLOAD_DIR__",
+            File(context.filesDir, "downloads/py_download_file").absolutePath,
+        ),
+    )
+
+    private fun readRawResource(context: Context, rawId: Int): String {
+        return context.resources.openRawResource(rawId).bufferedReader().use { it.readText() }
+    }
+
+    private fun defaultMainAgentProfile(nowMillis: Long): AgentProfile {
+        return AgentProfile(
+            id = StoreDescriptorRegistry.MAIN_AGENT_ID,
+            name = "Main",
+            alias = StoreDescriptorRegistry.MAIN_AGENT_ID,
+            enabled = true,
+            order = 0,
+            memoryMode = AgentMemoryMode.SharedMain,
+            createdAt = nowMillis,
+            updatedAt = nowMillis,
+        )
+    }
+}
+
+class AgentApi internal constructor(
+    private val repo: XRepo,
+) {
+    suspend fun list(): List<AgentProfile> {
+        return AgentSettingsCodec.parseRegistry(repo.readJson(StoreDescriptorRegistry.AGENT_REGISTRY_ID))
+    }
+
+    suspend fun get(agentId: String): AgentProfile? {
+        val normalizedId = AgentSettingsCodec.normalizeAgentId(agentId) ?: return null
+        return list().firstOrNull { it.id == normalizedId }
+    }
+
+    suspend fun saveProfile(profile: AgentProfile, overwrite: Boolean = true): AgentValidation? {
+        val normalizedId = AgentSettingsCodec.normalizeAgentId(profile.id)
+            ?: return AgentValidation("id", "Invalid agent id.")
+        val normalizedAlias = AgentSettingsCodec.normalizeAlias(profile.alias)
+            ?: return AgentValidation("alias", "Invalid alias.")
+        val normalizedName = profile.name.trim()
+        if (normalizedName.isBlank()) {
+            return AgentValidation("name", "Required field 'name' is missing.")
+        }
+        if (normalizedId == StoreDescriptorRegistry.MAIN_AGENT_ID && !profile.enabled) {
+            return AgentValidation("enabled", "Main agent cannot be disabled.")
+        }
+
+        val nowMillis = System.currentTimeMillis()
+        val current = list()
+        val existing = current.firstOrNull { it.id == normalizedId }
+        if (!overwrite && existing != null) {
+            return AgentValidation("id", "Already exists in agents.")
+        }
+        if (current.any { it.id != normalizedId && it.alias == normalizedAlias }) {
+            return AgentValidation("alias", "Already exists in agents.")
+        }
+
+        val normalized = profile.copy(
+            id = normalizedId,
+            name = normalizedName,
+            alias = normalizedAlias,
+            createdAt = profile.createdAt.takeIf { it > 0L } ?: existing?.createdAt ?: nowMillis,
+            updatedAt = nowMillis,
+        )
+        val updated = if (existing == null) {
+            current + normalized
+        } else {
+            current.map { if (it.id == normalizedId) normalized else it }
+        }
+        repo.writeJson(
+            StoreDescriptorRegistry.AGENT_REGISTRY_ID,
+            AgentSettingsCodec.encodeRegistry(updated)
+        )
+        return null
+    }
+
+    suspend fun setEnabled(agentId: String, enabled: Boolean): AgentValidation? {
+        val normalizedId = AgentSettingsCodec.normalizeAgentId(agentId)
+            ?: return AgentValidation("id", "Invalid agent id.")
+        if (normalizedId == StoreDescriptorRegistry.MAIN_AGENT_ID && !enabled) {
+            return AgentValidation("enabled", "Main agent cannot be disabled.")
+        }
+        val current = list()
+        if (current.none { it.id == normalizedId }) {
+            return AgentValidation("id", "Agent does not exist.")
+        }
+        val nowMillis = System.currentTimeMillis()
+        repo.writeJson(
+            StoreDescriptorRegistry.AGENT_REGISTRY_ID,
+            AgentSettingsCodec.encodeRegistry(
+                current.map { profile ->
+                    if (profile.id == normalizedId) {
+                        profile.copy(enabled = enabled, updatedAt = nowMillis)
+                    } else {
+                        profile
+                    }
+                }
+            ),
+        )
+        return null
+    }
+
+    suspend fun memoriesFor(agentId: String): List<String> {
+        val normalizedId = AgentSettingsCodec.normalizeAgentId(agentId) ?: return emptyList()
+        if (normalizedId == StoreDescriptorRegistry.MAIN_AGENT_ID) {
+            return repo.memory.list()
+        }
+        return when (enabledProfile(normalizedId)?.memoryMode) {
+            AgentMemoryMode.SharedMain -> repo.memory.list()
+            AgentMemoryMode.Disabled,
+            null -> emptyList()
+        }
+    }
+
+    private suspend fun enabledProfile(agentId: String): AgentProfile? {
+        return get(agentId)?.takeIf { it.enabled }
+    }
+}
+
+/**
+ * Saved Configuration 多份保存的 LLM 接入配置（active 那份即生效配置）。
+ * - 新建保存时置 active；编辑非 active 配置不改变归属
+ * - 删除 active 后回落列表第一份；列表清空则回 onboarding 态
+ * - prompt 为全局一份的行为层配置，不随配置切换
+ */
+class LlmConfigsApi internal constructor(
+    private val repo: XRepo,
+) {
+    private val _revision = MutableStateFlow(0L)
+    val revision: StateFlow<Long> = _revision.asStateFlow()
+
+    private fun bumpRevision() {
+        _revision.value += 1L
+    }
+
+    internal fun resetForTest() {
+        _revision.value = 0L
+    }
+
+    suspend fun document(): LlmConfigsDocument {
+        return LlmConfigsSettingsCodec.parse(repo.readJson(StoreDescriptorRegistry.LLM_CONFIGS_ID))
+    }
+
+    suspend fun list(): List<SavedLlmConfig> = document().configs
+
+    suspend fun active(): SavedLlmConfig? = document().activeConfig()
+
+    /** 全局 system prompt；空串 = 未设置。 */
+    suspend fun prompt(): String = document().prompt
+
+    suspend fun savePrompt(prompt: String) {
+        val normalizedPrompt = prompt.trim()
+        repo.updateJson(StoreDescriptorRegistry.LLM_CONFIGS_ID) { json ->
+            val doc = LlmConfigsSettingsCodec.parse(json)
+            if (doc.prompt == normalizedPrompt) return@updateJson json
+            LlmConfigsSettingsCodec.encode(doc.copy(prompt = normalizedPrompt))
+        }
+        bumpRevision()
+    }
+
+    suspend fun setActive(id: String) {
+        val updated = repo.updateJsonOrFalse(StoreDescriptorRegistry.LLM_CONFIGS_ID) { json ->
+            val doc = LlmConfigsSettingsCodec.parse(json)
+            if (doc.configs.none { it.id == id.trim() }) return@updateJsonOrFalse null
+            if (doc.activeId == id.trim()) return@updateJsonOrFalse null
+            LlmConfigsSettingsCodec.encode(doc.copy(activeId = id.trim()))
+        }
+        if (updated) {
+            bumpRevision()
+        }
+    }
+
+    /** @return null = 成功；非 null = 用户可读的失败原因 */
+    suspend fun upsert(config: SavedLlmConfig): String? {
+        val nowMillis = System.currentTimeMillis()
+        val normalizedId = config.id.trim().ifBlank { newConfigId() }
+        repo.updateJson(StoreDescriptorRegistry.LLM_CONFIGS_ID) { json ->
+            val doc = LlmConfigsSettingsCodec.parse(json)
+            val existing = doc.configs.firstOrNull { it.id == normalizedId }
+            // 编辑保存保留原 createdAt：列表按 createdAt 排序，不因编辑而重排
+            val createdAt = existing?.createdAt?.takeIf { it > 0L }
+                ?: config.createdAt.takeIf { it > 0L }
+                ?: nowMillis
+            val normalizedConfig = config.copy(
+                id = normalizedId,
+                name = config.name.trim().ifBlank { config.provider },
+                endpoint = config.endpoint.trim(),
+                model = config.model.trim(),
+                protocol = config.protocol.trim().lowercase(),
+                proxy = config.proxy.trim(),
+                createdAt = createdAt,
+                updatedAt = nowMillis,
+            )
+            val exists = existing != null
+            val updatedConfigs = if (exists) {
+                doc.configs.map { if (it.id == normalizedId) normalizedConfig else it }
+            } else {
+                doc.configs + normalizedConfig
+            }
+            // 仅新建时自动生效；编辑保存不改变 active 归属（若已失效由读取方兑底）
+            val nextActiveId = when {
+                !exists -> normalizedId
+                doc.configs.none { it.id == doc.activeId } -> normalizedId
+                else -> doc.activeId
+            }
+            LlmConfigsSettingsCodec.encode(
+                doc.copy(
+                    configs = updatedConfigs,
+                    activeId = nextActiveId
+                )
+            )
+        }
+        bumpRevision()
+        return null
+    }
+
+    suspend fun delete(id: String) {
+        val deleted = repo.updateJsonOrFalse(
+            StoreDescriptorRegistry.LLM_CONFIGS_ID,
+        ) { json ->
+            val doc = LlmConfigsSettingsCodec.parse(json)
+            val targetId = id.trim()
+            val remaining = doc.configs.filterNot { it.id == targetId }
+            if (remaining.size == doc.configs.size) return@updateJsonOrFalse null
+            val nextActiveId = when {
+                remaining.isEmpty() -> null
+                doc.activeId != targetId -> doc.activeId
+                else -> remaining.first().id
+            }
+            LlmConfigsSettingsCodec.encode(doc.copy(configs = remaining, activeId = nextActiveId))
+        }
+        if (!deleted) return
+        bumpRevision()
+        // 删除后若无任何配置：回 onboarding 态（下次冷启动重新引导）
+        if (list().isEmpty()) {
+            repo.setOnboardingCompleted(false)
+        }
+    }
+
+    private companion object {
+        private const val LOG_TAG = "zafiro_LlmConfigs"
+
+        fun newConfigId(): String {
+            return "cfg-" + UUID.randomUUID().toString().replace("-", "").take(12)
+        }
+    }
+}
+
+class MemoryApi internal constructor(
+    private val repo: XRepo,
+) {
+    suspend fun list(): List<String> {
+        return MemorySettingsCodec.parseMemories(repo.readJson(StoreDescriptorRegistry.AGENT_MAIN_MEMORY_ID))
+    }
+
+    suspend fun replaceAll(memories: List<String>) {
+        writeMemories(normalizeMemories(memories))
+    }
+
+    suspend fun add(value: String) {
+        val normalizedValue = value.trim()
+        if (normalizedValue.isBlank()) return
+        repo.updateJsonOrFalse(StoreDescriptorRegistry.AGENT_MAIN_MEMORY_ID) { json ->
+            val current = MemorySettingsCodec.parseMemories(json)
+            if (normalizedValue in current) return@updateJsonOrFalse null
+            MemorySettingsCodec.encodeMemories(
+                current + normalizedValue,
+                System.currentTimeMillis()
+            )
+        }
+    }
+
+    suspend fun update(index: Int, value: String) {
+        val normalizedValue = value.trim()
+        repo.updateJsonOrFalse(StoreDescriptorRegistry.AGENT_MAIN_MEMORY_ID) { json ->
+            val current = MemorySettingsCodec.parseMemories(json)
+            if (index !in current.indices) return@updateJsonOrFalse null
+            val updated = if (normalizedValue.isBlank()) {
+                current.filterIndexed { i, _ -> i != index }
+            } else {
+                current.mapIndexed { i, item -> if (i == index) normalizedValue else item }
+            }
+            MemorySettingsCodec.encodeMemories(updated, System.currentTimeMillis())
+        }
+    }
+
+    suspend fun delete(index: Int) {
+        repo.updateJsonOrFalse(StoreDescriptorRegistry.AGENT_MAIN_MEMORY_ID) { json ->
+            val current = MemorySettingsCodec.parseMemories(json)
+            if (index !in current.indices) return@updateJsonOrFalse null
+            MemorySettingsCodec.encodeMemories(
+                current.filterIndexed { i, _ -> i != index },
+                System.currentTimeMillis(),
+            )
+        }
+    }
+
+    suspend fun removeByText(oldText: String): MemoryMutationResult {
+        var result: MemoryMutationResult = MemoryMutationResult.NotFound
+        repo.updateJsonOrFalse(StoreDescriptorRegistry.AGENT_MAIN_MEMORY_ID) { json ->
+            val current = MemorySettingsCodec.parseMemories(json)
+            val matches = findMatches(current, oldText)
+            when {
+                matches.isEmpty() -> {
+                    result = MemoryMutationResult.NotFound
+                    null
+                }
+
+                hasMultipleDistinct(matches) -> {
+                    result = MemoryMutationResult.Ambiguous
+                    null
+                }
+
+                else -> {
+                    result = MemoryMutationResult.Ok
+                    MemorySettingsCodec.encodeMemories(
+                        current.filterIndexed { index, _ -> index != matches.first().index },
+                        System.currentTimeMillis(),
+                    )
+                }
+            }
+        }
+        return result
+    }
+
+    suspend fun replaceByText(oldText: String, newContent: String): MemoryMutationResult {
+        val normalizedContent = newContent.trim()
+        if (normalizedContent.isBlank()) return MemoryMutationResult.NotFound
+        var result: MemoryMutationResult = MemoryMutationResult.NotFound
+        repo.updateJsonOrFalse(StoreDescriptorRegistry.AGENT_MAIN_MEMORY_ID) { json ->
+            val current = MemorySettingsCodec.parseMemories(json)
+            val matches = findMatches(current, oldText)
+            when {
+                matches.isEmpty() -> {
+                    result = MemoryMutationResult.NotFound
+                    null
+                }
+
+                hasMultipleDistinct(matches) -> {
+                    result = MemoryMutationResult.Ambiguous
+                    null
+                }
+
+                else -> {
+                    result = MemoryMutationResult.Ok
+                    val matchedIndex = matches.first().index
+                    MemorySettingsCodec.encodeMemories(
+                        current.mapIndexed { index, item ->
+                            if (index == matchedIndex) normalizedContent else item
+                        },
+                        System.currentTimeMillis(),
+                    )
+                }
+            }
+        }
+        return result
+    }
+
+    private fun findMatches(
+        entries: List<String>,
+        oldText: String,
+    ): List<IndexedEntry> {
+        return entries.mapIndexedNotNull { index, entry ->
+            if (oldText in entry) IndexedEntry(index, entry) else null
+        }
+    }
+
+    private fun hasMultipleDistinct(matches: List<IndexedEntry>): Boolean {
+        return matches.size > 1 && matches.map { it.content }.distinct().size > 1
+    }
+
+    private data class IndexedEntry(val index: Int, val content: String)
+
+    private suspend fun writeMemories(memories: List<String>) {
+        repo.writeJson(
+            StoreDescriptorRegistry.AGENT_MAIN_MEMORY_ID,
+            MemorySettingsCodec.encodeMemories(memories, System.currentTimeMillis()),
+        )
+    }
+
+    private fun normalizeMemories(memories: List<String>): List<String> {
+        return memories.map(String::trim).filter(String::isNotBlank)
+    }
+}
+
+class ExecutionRulesApi internal constructor(
+    private val repo: XRepo,
+) {
+    suspend fun list(): List<ExecutionRule> {
+        val json = repo.readJson(StoreDescriptorRegistry.RULES_EXECUTION_ID)
+        if (json == """{"rules":[]}""") {
+            return LocalSettingsDefaults.defaultExecutionRules
+        }
+        return RuleSettingsCodec.parseExecutionRules(json)
+    }
+
+    suspend fun get(id: String): ExecutionRule? {
+        return list().firstOrNull { it.id == id }
+    }
+
+    suspend fun save(rule: ExecutionRule) {
+        repo.updateJson(StoreDescriptorRegistry.RULES_EXECUTION_ID) { json ->
+            val rules = RuleSettingsCodec.parseExecutionRules(json)
+            val updated = if (rules.any { it.id == rule.id }) {
+                rules.map { if (it.id == rule.id) rule else it }
+            } else {
+                rules + rule
+            }
+            encodeExecutionRulesForWrite(updated)
+        }
+    }
+
+    suspend fun replace(previousId: String?, rule: ExecutionRule) {
+        repo.updateJson(StoreDescriptorRegistry.RULES_EXECUTION_ID) { json ->
+            val rules = RuleSettingsCodec.parseExecutionRules(json)
+            val withoutPrevious = if (previousId != null && previousId != rule.id) {
+                rules.filterNot { it.id == previousId }
+            } else {
+                rules
+            }
+            val updated = if (withoutPrevious.any { it.id == rule.id }) {
+                withoutPrevious.map { if (it.id == rule.id) rule else it }
+            } else {
+                withoutPrevious + rule
+            }
+            encodeExecutionRulesForWrite(updated)
+        }
+    }
+
+    suspend fun delete(id: String) {
+        repo.updateJson(StoreDescriptorRegistry.RULES_EXECUTION_ID) { json ->
+            encodeExecutionRulesForWrite(
+                RuleSettingsCodec.parseExecutionRules(json).filterNot { it.id == id },
+            )
+        }
+    }
+
+    suspend fun setEnabledMode(id: String, enabledMode: ExecutionRuleEnabledMode) {
+        repo.updateJson(StoreDescriptorRegistry.RULES_EXECUTION_ID) { json ->
+            encodeExecutionRulesForWrite(
+                RuleSettingsCodec.parseExecutionRules(json).map { rule ->
+                    if (rule.id == id) rule.copy(enabledMode = enabledMode) else rule
+                },
+            )
+        }
+    }
+
+    private fun encodeExecutionRulesForWrite(rules: List<ExecutionRule>): String {
+        return if (rules.isEmpty()) {
+            EXPLICIT_EMPTY_RULES_JSON
+        } else {
+            RuleSettingsCodec.encodeExecutionRules(rules)
+        }
+    }
+
+    private companion object {
+        private const val EXPLICIT_EMPTY_RULES_JSON = """{"rules":[],"_explicit":true}"""
+    }
+}
+
+
+class CustomPyToolApi internal constructor(
+    private val repo: XRepo,
+    private val preflight: ToolExecutionPreflight = ToolExecutionPreflight(
+        listExecutionRules = { repo.executionRules.list() },
+    ),
+    private val builtinToolRegistry: BuiltinToolRegistry = BuiltinToolRegistry.default(),
+) {
+    suspend fun list(): List<CustomPyTool> {
+        return ToolSettingsCodec.parseCustomPyTools(repo.readJson(StoreDescriptorRegistry.TOOLS_PY_ID))
+    }
+
+    suspend fun get(name: String): CustomPyTool? {
+        return list().firstOrNull { it.name == name }
+    }
+
+    suspend fun save(tool: CustomPyTool, overwrite: Boolean = true): ToolValidation? {
+        validate(tool, overwrite)?.let { return it }
+        val normalized = tool.normalized()
+        repo.updateJson(StoreDescriptorRegistry.TOOLS_PY_ID) { json ->
+            val tools = ToolSettingsCodec.parseCustomPyTools(json)
+            val updated = if (tools.any { it.name == normalized.name }) {
+                tools.map { if (it.name == normalized.name) normalized else it }
+            } else {
+                tools + normalized
+            }
+            ToolSettingsCodec.encodeCustomPyTools(updated)
+        }
+        return null
+    }
+
+    suspend fun delete(name: String) {
+        repo.updateJson(StoreDescriptorRegistry.TOOLS_PY_ID) { json ->
+            ToolSettingsCodec.encodeCustomPyTools(
+                ToolSettingsCodec.parseCustomPyTools(json).filterNot { it.name == name })
+        }
+    }
+
+    suspend fun setEnabled(name: String, enabled: Boolean) {
+        repo.updateJson(StoreDescriptorRegistry.TOOLS_PY_ID) { json ->
+            ToolSettingsCodec.encodeCustomPyTools(
+                ToolSettingsCodec.parseCustomPyTools(json).map { tool ->
+                    if (tool.name == name) tool.copy(enabled = enabled) else tool
+                },
+            )
+        }
+    }
+
+    /**
+     * 签名反射（纯读，不写盘）：提取 main 的基本类型标注与 docstring。
+     * 供上游自由编排顺序与取消——反射与写盘之间没有任何副作用，
+     * 因此取消掉这次调用等于这次保存从未发生。
+     *
+     * 失败时区分来源：脚本结构化报错与"代码没跑完"算代码问题，
+     * worker 不可用、客户端超时、返回不是 JSON 算应用内部问题。
+     */
+    suspend fun validate(tool: CustomPyTool, overwrite: Boolean = true): ToolValidation? {
+        val normalized = tool.normalized()
+        if (!NAME_PATTERN.matches(normalized.name)) {
+            return ToolValidation(
+                field = "name",
+                message = "Name must match py_[a-z][a-z0-9_] (the py_ prefix is added automatically).",
+            )
+        }
+        if (normalized.name.removePrefix(PY_PREFIX) in
+            builtinToolRegistry.all().map { it.name }.toSet()
+        ) {
+            return ToolValidation("name", "Reserved builtin tool name.")
+        }
+        if (normalized.code.isBlank()) {
+            return ToolValidation("code", "Required field 'code' is missing.")
+        }
+        if (normalized.timeoutMs !in 1_000L..CustomPyTool.MAX_CUSTOM_PY_TOOL_TIMEOUT_MS) {
+            return ToolValidation("timeout_ms", "Must be between 1000 and 120000.")
+        }
+        val decision = preflight.evaluate(normalized.code, toolName = normalized.name)
+        if (!decision.allowed) {
+            return ToolValidation("code", decision.reason)
+        }
+        if (!overwrite && list().any { it.name == normalized.name }) {
+            return ToolValidation("name", "Already exists in custom_py_tools.")
+        }
+        return null
+    }
+
+    private fun CustomPyTool.normalized(): CustomPyTool {
+        return copy(
+            name = name.trim(),
+            code = code.trim(),
+            description = description.trim(),
+        )
+    }
+
+    companion object {
+        private const val PY_PREFIX = "py_"
+        private const val INTROSPECTION_TIMEOUT_MS = 30_000L
+        private val NAME_PATTERN = Regex("^py_[a-z][a-z0-9_]{0,63}$")
+    }
+}
+
+/**
+ * 签名反射结果：成功时带 description/schemaJson，失败时带 [error] 与 [origin]。
+ */
+data class CustomPyToolIntrospection(
+    val description: String? = null,
+    val schemaJson: String? = null,
+    val error: String? = null,
+    val origin: ToolValidationOrigin = ToolValidationOrigin.Code,
+)
+
+class BuiltinToolApi internal constructor(
+    private val repo: XRepo,
+    private val registry: BuiltinToolRegistry = BuiltinToolRegistry.default(),
+) {
+    suspend fun list(): List<BuiltinToolSetting> {
+        val flags = ToolSettingsCodec.parseBuiltinEnabled(
+            repo.readJson(StoreDescriptorRegistry.TOOLS_BUILTIN_ID)
+        )
+        return registry.all()
+            .sortedBy { it.name }
+            .map { tool ->
+                BuiltinToolSetting(
+                    name = tool.name,
+                    description = tool.description,
+                    enabled = flags.enabledFlagFor(tool.name, tool.defaultEnabled),
+                )
+            }
+    }
+
+    suspend fun enabled(): List<BuiltinToolSetting> {
+        return list().filter { it.enabled }
+    }
+
+    suspend fun setEnabled(name: String, enabled: Boolean): ToolValidation? {
+        if (registry.find(name) == null) {
+            return ToolValidation("name", "Builtin tool is not registered.")
+        }
+        repo.updateJson(StoreDescriptorRegistry.TOOLS_BUILTIN_ID) { json ->
+            val flags = parseKnownFlags(json).toMutableMap()
+            flags[name] = enabled
+            ToolSettingsCodec.encodeBuiltinEnabled(flags)
+        }
+        return null
+    }
+
+    // 写穿：组内成员在同一闭包内一次原子写，失败无部分提交。新成员无 flag → 回退 defaultEnabled。
+    suspend fun setGroupEnabled(groupId: String, enabled: Boolean): ToolValidation? {
+        val group = BuiltinToolGroups.find(groupId)
+            ?: return ToolValidation("groupId", "Unknown builtin tool group.")
+        repo.updateJson(StoreDescriptorRegistry.TOOLS_BUILTIN_ID) { json ->
+            val flags = parseKnownFlags(json).toMutableMap()
+            group.members.forEach { member -> flags[member] = enabled }
+            ToolSettingsCodec.encodeBuiltinEnabled(flags)
+        }
+        return null
+    }
+
+    // 读端忽略未知工具名，写端丢弃孤儿 flag（下架/改名卫生），文件不累积旧键。
+    private fun parseKnownFlags(json: String): Map<String, Boolean> {
+        return ToolSettingsCodec.parseBuiltinEnabled(json)
+            .filterKeys { name -> registry.find(name) != null }
+    }
+
+    private fun Map<String, Boolean>.enabledFlagFor(
+        toolName: String,
+        defaultEnabled: Boolean
+    ): Boolean {
+        return this[toolName] ?: defaultEnabled
+    }
+
+    private companion object {
+        private const val TERMINAL_TOOL_NAME = "terminal"
+    }
+}

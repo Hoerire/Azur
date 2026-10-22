@@ -1,0 +1,87 @@
+package com.hoerire.tools.libterm.runtime
+
+import com.hoerire.tools.libterm.BackendAvailability
+import com.hoerire.tools.libterm.PrivilegeProvider
+import com.hoerire.tools.libterm.TerminalFailure
+import com.hoerire.tools.libterm.TerminalIdentity
+import com.hoerire.tools.libterm.runtime.internal.RuntimePrivilegeProvider
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertSame
+
+class RuntimePrivilegeProviderTest {
+
+    @Test
+    fun `user delegates to libsu provider only`() = runTest {
+        val libsu = RecordingPrivilegeProvider(BackendAvailability.Available)
+        val shizuku = RecordingPrivilegeProvider(shizukuUnavailable())
+        val provider = RuntimePrivilegeProvider(
+            libsuProvider = libsu,
+            shizukuProvider = shizuku,
+        )
+
+        val result = provider.getAvailability(TerminalIdentity.User)
+
+        assertSame(BackendAvailability.Available, result)
+        assertEquals(listOf(TerminalIdentity.User), libsu.calls)
+        assertEquals(emptyList(), shizuku.calls)
+    }
+
+    @Test
+    fun `shizuku delegates to shizuku provider only`() = runTest {
+        val libsu = RecordingPrivilegeProvider(shizukuUnavailable())
+        val shizukuFailure = TerminalFailure.AuthorizationDenied(
+            identity = TerminalIdentity.Shizuku,
+            message = "permission denied",
+        )
+        val shizukuResult = BackendAvailability.Unauthorized(shizukuFailure)
+        val shizuku = RecordingPrivilegeProvider(shizukuResult)
+        val provider = RuntimePrivilegeProvider(
+            libsuProvider = libsu,
+            shizukuProvider = shizuku,
+        )
+
+        val result = provider.getAvailability(TerminalIdentity.Shizuku)
+
+        assertSame(shizukuResult, result)
+        assertEquals(emptyList(), libsu.calls)
+        assertEquals(listOf(TerminalIdentity.Shizuku), shizuku.calls)
+    }
+
+    @Test
+    fun `ssh is available without delegating to local providers`() = runTest {
+        val libsu = RecordingPrivilegeProvider(shizukuUnavailable())
+        val shizuku = RecordingPrivilegeProvider(shizukuUnavailable())
+        val provider = RuntimePrivilegeProvider(
+            libsuProvider = libsu,
+            shizukuProvider = shizuku,
+        )
+
+        val result = provider.getAvailability(TerminalIdentity.Ssh)
+
+        assertSame(BackendAvailability.Available, result)
+        assertEquals(emptyList(), libsu.calls)
+        assertEquals(emptyList(), shizuku.calls)
+    }
+
+    private class RecordingPrivilegeProvider(
+        private val result: BackendAvailability,
+    ) : PrivilegeProvider {
+        val calls = mutableListOf<TerminalIdentity>()
+
+        override suspend fun getAvailability(identity: TerminalIdentity): BackendAvailability {
+            calls += identity
+            return result
+        }
+    }
+
+    private fun shizukuUnavailable(): BackendAvailability {
+        return BackendAvailability.Unavailable(
+            TerminalFailure.BackendUnavailable(
+                identity = TerminalIdentity.Shizuku,
+                message = "not used",
+            ),
+        )
+    }
+}

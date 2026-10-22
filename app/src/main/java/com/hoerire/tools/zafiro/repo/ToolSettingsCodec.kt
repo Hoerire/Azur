@@ -1,0 +1,97 @@
+package com.hoerire.tools.zafiro.repo
+
+import com.hoerire.tools.zafiro.repo.SettingsJsonCodecUtils.array
+import com.hoerire.tools.zafiro.repo.SettingsJsonCodecUtils.orEmptyObjects
+import com.hoerire.tools.zafiro.repo.SettingsJsonCodecUtils.parseObject
+import com.hoerire.tools.zafiro.repo.SettingsJsonCodecUtils.string
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.longOrNull
+import com.hoerire.tools.zafiro.settings.model.RuntimeCustomPyTool as CustomPyTool
+
+internal object ToolSettingsCodec {
+    // v2：一个工具一个布尔，缺失回退 defaultEnabled；未知工具名由调用方按 registry 过滤（读端忽略、写端 GC）。
+    // version 仅审计，不参与解析。旧 enabled_for_agents 键不识别 = 空配置，无迁移。
+    fun parseBuiltinEnabled(json: String): Map<String, Boolean> {
+        val enabled = parseObject(json)[ENABLED_KEY] as? JsonObject ?: return emptyMap()
+        return enabled.mapNotNull { (toolName, value) ->
+            (value as? JsonPrimitive)?.booleanOrNull?.let { toolName to it }
+        }.toMap()
+    }
+
+    fun encodeBuiltinEnabled(enabled: Map<String, Boolean>): String {
+        val flags = enabled.mapValues { (_, isEnabled) -> JsonPrimitive(isEnabled) }
+        return JsonObject(
+            mapOf(
+                VERSION_KEY to JsonPrimitive(BUILTIN_VERSION),
+                ENABLED_KEY to JsonObject(flags),
+            )
+        ).toString()
+    }
+
+    fun parseCustomPyTools(json: String): List<CustomPyTool> {
+        return parseObject(json)
+            .array(TOOLS_KEY)
+            .orEmptyObjects()
+            .mapNotNull { obj ->
+                val name = obj.string(NAME_KEY).trim()
+                val code = obj.string(CODE_KEY)
+                if (name.isBlank() || code.isBlank()) return@mapNotNull null
+                CustomPyTool(
+                    name = name,
+                    code = code,
+                    description = obj.string(DESCRIPTION_KEY),
+                    schemaJson = obj.string(SCHEMA_KEY),
+                    enabled = (obj[ENABLED_KEY] as? JsonPrimitive)?.booleanOrNull ?: true,
+                    timeoutMs = parseTimeoutMs(obj),
+                )
+            }
+    }
+
+    /**
+     * 写入口（CustomPyToolApi.validate / PyMetaToolsBuiltin）都夹了 1000..120000，
+     * 但手改磁盘文件绕过了写入口。负值会让超时计算抛 IllegalArgumentException
+     * 抛 IllegalArgumentException，极大值则让工具永不超时，所以读盘侧也必须夹一次。
+     */
+    private fun parseTimeoutMs(obj: JsonObject): Long {
+        val raw = (obj[TIMEOUT_KEY] as? JsonPrimitive)?.longOrNull
+            ?: return CustomPyTool.DEFAULT_CUSTOM_PY_TOOL_TIMEOUT_MS
+        return raw.coerceIn(
+            CustomPyTool.MIN_CUSTOM_PY_TOOL_TIMEOUT_MS,
+            CustomPyTool.MAX_CUSTOM_PY_TOOL_TIMEOUT_MS,
+        )
+    }
+
+    fun encodeCustomPyTools(tools: List<CustomPyTool>): String {
+        return JsonObject(
+            mapOf(
+                TOOLS_KEY to JsonArray(
+                    tools.map { tool ->
+                        JsonObject(
+                            mapOf(
+                                NAME_KEY to JsonPrimitive(tool.name),
+                                CODE_KEY to JsonPrimitive(tool.code),
+                                DESCRIPTION_KEY to JsonPrimitive(tool.description),
+                                SCHEMA_KEY to JsonPrimitive(tool.schemaJson),
+                                ENABLED_KEY to JsonPrimitive(tool.enabled),
+                                TIMEOUT_KEY to JsonPrimitive(tool.timeoutMs),
+                            )
+                        )
+                    }
+                )
+            )
+        ).toString()
+    }
+
+    private const val VERSION_KEY = "version"
+    private const val BUILTIN_VERSION = 2
+    private const val ENABLED_KEY = "enabled"
+    private const val TOOLS_KEY = "tools"
+    private const val NAME_KEY = "name"
+    private const val DESCRIPTION_KEY = "description"
+    private const val CODE_KEY = "code"
+    private const val SCHEMA_KEY = "schema"
+    private const val TIMEOUT_KEY = "timeout_ms"
+}

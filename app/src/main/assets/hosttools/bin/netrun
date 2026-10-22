@@ -1,0 +1,24 @@
+#!/system/bin/sh
+# netrun —— 让宿主 musl 程序能联网（DNS + CA）
+#
+# 原理（实测可行）：
+#   Android 没有 /etc/resolv.conf → musl 解析不到域名；/etc 是 /system/etc 的只读符号链接。
+#   unshare -m 建私有 mount namespace，用 tmpfs 盖住 /system/etc，在里面写 resolv.conf；
+#   再把 Alpine 的 CA bundle 通过 CURL_CA_BUNDLE / SSL_CERT_FILE 指过去。只影响本进程树。
+#
+# 用法：
+#   netrun curl -sSL -o /tmp/x https://example.com/f
+#   netrun python3 -m pip install requests
+#   netrun git clone https://github.com/u/r
+#   netrun wget -q -O - https://example.com
+HT=${HT:-$(cd "$(dirname "$0")/.." && pwd)}
+exec /system/bin/unshare -m /system/bin/sh -c '
+  HT="'"$HT"'"
+  mount -t tmpfs tmpfs /system/etc 2>/dev/null
+  printf "nameserver 223.5.5.5\nnameserver 119.29.29.29\nnameserver 8.8.8.8\n" > /etc/resolv.conf 2>/dev/null
+  export CURL_CA_BUNDLE="$HT/share/ca-bundle.crt"
+  export SSL_CERT_FILE="$HT/share/ca-bundle.crt"
+  export REQUESTS_CA_BUNDLE="$HT/share/ca-bundle.crt"
+  export PATH="$HT/bin:$HT/applets:$PATH"
+  exec "$@"
+' sh "$@"

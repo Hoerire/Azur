@@ -1,0 +1,12 @@
+gradle.afterProject { p ->
+  if (!p.plugins.hasPlugin('com.android.application')) return
+  def android = p.extensions.getByName('android')
+  def ks = p.findProperty('zafiroKs') ?: '/data/local/aitools/环境/debug.keystore'
+  def cfg = android.signingConfigs.maybeCreate('zafiroRelease')
+  cfg.storeFile = p.file(ks)
+  cfg.storePassword = 'android'
+  cfg.keyAlias = 'androiddebugkey'
+  cfg.keyPassword = 'android'
+  def rt = android.buildTypes.findByName('release')
+  if (rt != null && rt.signingConfig == null) rt.signingConfig = cfg
+}

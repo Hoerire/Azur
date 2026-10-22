@@ -1,0 +1,128 @@
+package com.hoerire.tools.okia
+
+import com.hoerire.tools.okia.error.RetryPolicy
+import com.hoerire.tools.okia.hooks.Hooks
+import com.hoerire.tools.okia.loop.RepetitionConfig
+import com.hoerire.tools.okia.loop.RequestLogger
+import com.hoerire.tools.okia.message.ThinkingLevel
+import com.hoerire.tools.okia.tooling.ToolRegistry
+import com.hoerire.tools.okia.transport.HttpEngine
+import com.hoerire.tools.okia.transport.redactHeaders
+
+/**
+ * 不可变连接配置。一次构建，变更通过 Okia.update 整体替换快照。
+ * hooks 只读 List，builder 累积注册（开放问题 6.4 候选 A）。
+ * retryPolicy 为传输层重试（经 LoopRequest 传给 loop）；httpEngine 为
+ * 传输入口（宿主注入时宿主所有，null 时门面自建、实例所有；经
+ * LoopRequest 传给 loop）。
+ */
+data class OkiaConfig(
+    val endpoint: String,
+    val apiKey: String,
+    val model: String,
+    val temperature: Float,
+    val maxTokens: Int,
+    val connectTimeoutSeconds: Long,
+    val readTimeoutSeconds: Long,
+    val writeTimeoutSeconds: Long,
+    val idleTimeoutSeconds: Long?,
+    val headers: Map<String, String>,
+    val retryPolicy: RetryPolicy,
+    val hooks: List<Hooks>,
+    val toolRegistry: ToolRegistry?,
+    val httpEngine: HttpEngine?,
+    val imageLoader: ImageLoader? = null,
+    val imageSaver: ImageSaver? = null,
+    val supportsImages: Boolean = false,
+    /** 思考强度；null = 不发送思考字段（Provider 默认行为）。 */
+    val thinkingLevel: ThinkingLevel? = null,
+    /** 代理 URL（http/https/socks）；空串 = 直连。经传输层 ProxySelector 动态生效。 */
+    val proxy: String = "",
+    /** 请求级诊断出口；null = 不打日志。宿主注入（okia 不依赖日志库）。 */
+    val requestLogger: RequestLogger? = null,
+    /** 复读检测阈值；null = 用库默认值（不检测的档位由宿主令其宽松到不可达）。 */
+    val repetitionConfig: RepetitionConfig? = null
+) {
+
+    override fun toString(): String =
+        "OkiaConfig(endpoint=$endpoint, apiKey=██, model=$model, temperature=$temperature, " +
+                "maxTokens=$maxTokens, connectTimeoutSeconds=$connectTimeoutSeconds, " +
+                "readTimeoutSeconds=$readTimeoutSeconds, writeTimeoutSeconds=$writeTimeoutSeconds, " +
+                "idleTimeoutSeconds=$idleTimeoutSeconds, headers=${redactHeaders(headers)}, " +
+                "toolRegistry=$toolRegistry, httpEngine=$httpEngine, proxy=$proxy)"
+
+    /** 可变构建器。build() 之后配置不可变。 */
+    class Builder {
+        var endpoint: String = ""
+        var apiKey: String = ""
+        var model: String = ""
+        var temperature: Float = 1.0f
+        var maxTokens: Int = 4096
+        var connectTimeoutSeconds: Long = 30
+        var readTimeoutSeconds: Long = 60
+        var writeTimeoutSeconds: Long = 30
+        var idleTimeoutSeconds: Long? = null
+        var headers: Map<String, String> = emptyMap()
+        var retryPolicy: RetryPolicy = RetryPolicy()
+        var hooks: List<Hooks> = emptyList()
+        var toolRegistry: ToolRegistry? = null
+        var httpEngine: HttpEngine? = null
+        var imageLoader: ImageLoader? = null
+        var imageSaver: ImageSaver? = null
+        var supportsImages: Boolean = false
+        var thinkingLevel: ThinkingLevel? = null
+        var proxy: String = ""
+        var requestLogger: RequestLogger? = null
+        var repetitionConfig: RepetitionConfig? = null
+
+        // 组装不可变配置快照
+        fun build(): OkiaConfig = OkiaConfig(
+            endpoint = endpoint,
+            apiKey = apiKey,
+            model = model,
+            temperature = temperature,
+            maxTokens = maxTokens,
+            connectTimeoutSeconds = connectTimeoutSeconds,
+            readTimeoutSeconds = readTimeoutSeconds,
+            writeTimeoutSeconds = writeTimeoutSeconds,
+            idleTimeoutSeconds = idleTimeoutSeconds,
+            headers = headers,
+            retryPolicy = retryPolicy,
+            hooks = hooks,
+            toolRegistry = toolRegistry,
+            httpEngine = httpEngine,
+            imageLoader = imageLoader,
+            imageSaver = imageSaver,
+            supportsImages = supportsImages,
+            thinkingLevel = thinkingLevel,
+            proxy = proxy,
+            requestLogger = requestLogger,
+            repetitionConfig = repetitionConfig
+        )
+        // 从现有快照复制全部字段（update 热更新的基础：只改 block 声明的字段）
+        internal fun copyFrom(other: OkiaConfig): Builder {
+            endpoint = other.endpoint
+            apiKey = other.apiKey
+            model = other.model
+            temperature = other.temperature
+            maxTokens = other.maxTokens
+            connectTimeoutSeconds = other.connectTimeoutSeconds
+            readTimeoutSeconds = other.readTimeoutSeconds
+            writeTimeoutSeconds = other.writeTimeoutSeconds
+            idleTimeoutSeconds = other.idleTimeoutSeconds
+            headers = other.headers
+            retryPolicy = other.retryPolicy
+            hooks = other.hooks
+            toolRegistry = other.toolRegistry
+            httpEngine = other.httpEngine
+            imageLoader = other.imageLoader
+            imageSaver = other.imageSaver
+            supportsImages = other.supportsImages
+            thinkingLevel = other.thinkingLevel
+            proxy = other.proxy
+            requestLogger = other.requestLogger
+            repetitionConfig = other.repetitionConfig
+            return this
+        }
+    }
+}

@@ -1,0 +1,386 @@
+package com.hoerire.tools.zafiro.chat
+
+import com.hoerire.tools.zafiro.chat.agentic.PromptComposer
+import com.hoerire.tools.zafiro.chat.agentic.PromptComposerInput
+import com.hoerire.tools.zafiro.chat.agentic.buildin.BuiltinTool
+import com.hoerire.tools.zafiro.chat.agentic.buildin.BuiltinToolRequest
+import com.hoerire.tools.zafiro.chat.agentic.buildin.BuiltinToolResult
+import com.hoerire.tools.zafiro.settings.model.RuntimeLlmConfig
+import com.hoerire.tools.zafiro.settings.model.RuntimeSkillMetadata
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class PromptComposerTest {
+
+    // --- Identity slot (stable tier) ---
+
+    @Test
+    fun compose_emptyAdditionalInstructionsUsesDefaultIdentity() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(additionalInstructions = " ")
+        )
+
+        assertTrue(result.finalSystemPrompt.contains(PromptComposer.DEFAULT_AGENT_IDENTITY))
+        assertTrue(result.finalSystemPrompt.startsWith(PromptComposer.DEFAULT_AGENT_IDENTITY))
+    }
+
+    @Test
+    fun compose_additionalInstructionsReplacesDefaultIdentity() {
+        val customIdentity = "You are a custom test assistant."
+        val result = PromptComposer().compose(
+            PromptComposerInput(additionalInstructions = customIdentity)
+        )
+
+        assertFalse(result.finalSystemPrompt.contains(PromptComposer.DEFAULT_AGENT_IDENTITY))
+        assertTrue(result.finalSystemPrompt.startsWith(customIdentity))
+    }
+
+    @Test
+    fun compose_tiersOrderedStableBeforeVolatile() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "ctx",
+                memoryItems = listOf("mem"),
+            )
+        )
+
+        val stableIdx = result.finalSystemPrompt.indexOf("ctx")
+        val volatileIdx = result.finalSystemPrompt.indexOf("═══")
+
+        assertTrue(stableIdx < volatileIdx)
+    }
+
+    // --- Memory section (volatile tier) ---
+
+    @Test
+    fun compose_omitsMemorySectionWhenNoMemoryItems() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "base",
+                memoryItems = listOf(" "),
+            )
+        )
+
+        assertFalse(result.finalSystemPrompt.contains("═══"))
+    }
+
+    @Test
+    fun compose_rendersMemoryItemsInHermesBlockFormat() {
+        val sep = "═".repeat(46)
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "base",
+                memoryItems = listOf(" A ", "B", " "),
+            )
+        )
+
+        assertTrue(result.finalSystemPrompt.contains("$sep\nMEMORY\n$sep"))
+        assertTrue(result.finalSystemPrompt.contains("A\n§\nB"))
+    }
+
+    // --- Tool context (stable tier) ---
+
+    @Test
+    fun compose_injectsExecutionRulesGuidanceWhenToolsExist() {
+        val customPyTool = LocalTool.Py(
+            name = "py_launch_wechat",
+            description = "Launch WeChat",
+            code = "def main():\n    pass",
+            inputSchemaJson = null,
+        )
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                tools = ResolvedTools(customPyTools = listOf(customPyTool)),
+            )
+        )
+
+        assertTrue(result.finalSystemPrompt.contains(PromptComposer.EXECUTION_RULES_GUIDANCE))
+    }
+
+    @Test
+    fun compose_omitsExecutionRulesGuidanceWhenNoTools() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "base",
+                tools = ResolvedTools(),
+            )
+        )
+
+        assertFalse(result.finalSystemPrompt.contains(PromptComposer.EXECUTION_RULES_GUIDANCE))
+    }
+
+    @Test
+    fun compose_rendersBuiltinToolsWithoutDescriptions() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                tools = ResolvedTools(
+                    builtinTools = listOf(
+                        LocalTool.Builtin(
+                            name = "notify",
+                            description = "Send a notification",
+                            tool = FakeBuiltinTool(name = "notify"),
+                        )
+                    )
+                ),
+            )
+        )
+
+        assertTrue(result.finalSystemPrompt.contains("<builtin_tools>\n- notify\n</builtin_tools>"))
+        assertFalse(result.finalSystemPrompt.contains("Send a notification"))
+        assertFalse(result.finalSystemPrompt.contains("<custom_py_tools>"))
+    }
+
+    // --- Skill context (stable tier) ---
+
+    @Test
+    fun compose_omitsSkillContextWhenNoEnabledSkills() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "base",
+                enabledSkills = emptyList(),
+            )
+        )
+
+        assertFalse(result.finalSystemPrompt.contains("## Skills (mandatory)"))
+        assertFalse(result.finalSystemPrompt.contains("<available_skills>"))
+    }
+
+    @Test
+    fun compose_omitsSkillContextWhenLoadSkillToolAbsent() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                enabledSkills = listOf(
+                    skill(id = "skill-a", name = "Skill A", description = "Description A")
+                ),
+                tools = ResolvedTools(),
+            )
+        )
+
+        assertFalse(result.finalSystemPrompt.contains("## Skills (mandatory)"))
+        assertFalse(result.finalSystemPrompt.contains("<available_skills>"))
+    }
+
+    @Test
+    fun compose_rendersOneEnabledSkill() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                enabledSkills = listOf(
+                    skill(id = "skill-a", name = "Skill A", description = "Description A")
+                ),
+                tools = ResolvedTools(
+                    builtinTools = listOf(loadSkillBuiltin()),
+                ),
+            )
+        )
+
+        assertTrue(result.finalSystemPrompt.contains("## Skills (mandatory)"))
+        assertTrue(
+            result.finalSystemPrompt.contains(
+                "  <skill>\n    <id>skill-a</id>\n    <name>Skill A</name>\n    <description>Description A</description>\n    <dir>/skills/skill-a</dir>\n  </skill>"
+            )
+        )
+    }
+
+    @Test
+    fun compose_skillsPromptUsesMandatoryLanguage() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                enabledSkills = listOf(skill(id = "s1", name = "S1", description = "D1")),
+                tools = ResolvedTools(
+                    builtinTools = listOf(loadSkillBuiltin()),
+                ),
+            )
+        )
+
+        assertTrue(result.finalSystemPrompt.contains("you MUST load it"))
+        assertTrue(result.finalSystemPrompt.contains("Err on the side of loading"))
+    }
+
+    @Test
+    fun compose_rendersEnabledSkillsSortedById() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                enabledSkills = listOf(
+                    skill(id = "skill-b", name = "Skill B", description = "Description B"),
+                    skill(
+                        id = "group-a/skill-a",
+                        name = "Group Skill",
+                        description = "Group description"
+                    ),
+                ),
+                tools = ResolvedTools(
+                    builtinTools = listOf(loadSkillBuiltin()),
+                ),
+            )
+        )
+
+        val prompt = result.finalSystemPrompt
+        assertTrue(prompt.indexOf("<id>group-a/skill-a</id>") < prompt.indexOf("<id>skill-b</id>"))
+    }
+
+    // --- Conditional guidance injection ---
+
+    @Test
+    fun compose_injectsMemoryGuidanceWhenMemorizeToolEnabled() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                tools = ResolvedTools(
+                    builtinTools = listOf(
+                        LocalTool.Builtin(
+                            name = "memory",
+                            description = "Add to persistent memory",
+                            tool = FakeBuiltinTool(name = "memory"),
+                        )
+                    )
+                ),
+            )
+        )
+
+        assertTrue(result.finalSystemPrompt.contains(PromptComposer.MEMORY_GUIDANCE))
+    }
+
+    @Test
+    fun compose_omitsMemoryGuidanceWhenMemorizeToolAbsent() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                tools = ResolvedTools(),
+            )
+        )
+
+        assertFalse(result.finalSystemPrompt.contains(PromptComposer.MEMORY_GUIDANCE))
+    }
+
+    @Test
+    fun compose_injectsSkillsGuidanceWhenLoadSkillToolEnabled() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                tools = ResolvedTools(
+                    builtinTools = listOf(loadSkillBuiltin()),
+                ),
+            )
+        )
+
+        assertTrue(result.finalSystemPrompt.contains(PromptComposer.SKILLS_GUIDANCE))
+    }
+
+    @Test
+    fun compose_omitsSkillsGuidanceWhenLoadSkillToolAbsent() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                tools = ResolvedTools(),
+            )
+        )
+
+        assertFalse(result.finalSystemPrompt.contains(PromptComposer.SKILLS_GUIDANCE))
+    }
+
+    @Test
+    fun compose_injectsTaskCompletionGuidanceWhenToolsPresent() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "",
+                tools = ResolvedTools(
+                    builtinTools = listOf(loadSkillBuiltin()),
+                ),
+            )
+        )
+
+        assertTrue(result.finalSystemPrompt.contains(PromptComposer.TASK_COMPLETION_GUIDANCE))
+    }
+
+    // --- PromptComposer.buildMemoryItems ---
+
+    @Test
+    fun promptComposer_prefersMemoriesOverMemoryPrompt() {
+        val items = PromptComposer.buildMemoryItems(
+            RuntimeLlmConfig(
+                memoryPrompt = "legacy",
+                memories = listOf(" A ", "B", " "),
+            )
+        )
+
+        assertEquals(listOf("A", "B"), items)
+        assertFalse(items.contains("legacy"))
+    }
+
+    // --- Helpers ---
+
+    private fun skill(
+        id: String,
+        name: String,
+        description: String,
+    ): RuntimeSkillMetadata {
+        return RuntimeSkillMetadata(
+            id = id,
+            name = name,
+            description = description,
+            relativePath = "$id/SKILL.md",
+            absolutePath = "/skills/$id/SKILL.md",
+            absoluteDir = "/skills/$id",
+            enabled = true,
+        )
+    }
+
+    private fun loadSkillBuiltin(): LocalTool.Builtin {
+        return LocalTool.Builtin(
+            name = "load_skill",
+            description = "Load a skill",
+            tool = FakeBuiltinTool(name = "load_skill"),
+        )
+    }
+
+    // --- Environment block (sandbox paths) ---
+
+    @Test
+    fun compose_emptySandboxPathsOmitsEnvironmentBlock() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(additionalInstructions = "ctx")
+        )
+
+        assertFalse(result.finalSystemPrompt.contains("# Environment"))
+    }
+
+    @Test
+    fun compose_sandboxPathsRenderEnvironmentBlock() {
+        val result = PromptComposer().compose(
+            PromptComposerInput(
+                additionalInstructions = "ctx",
+                memoryItems = listOf("mem"),
+                sandboxPaths = setOf(
+                    "/data/user/0/x/files/image_cache",
+                    "/data/user/0/x/files/downloads"
+                ),
+            )
+        )
+
+        assertTrue(result.finalSystemPrompt.contains("# Environment"))
+        assertTrue(result.finalSystemPrompt.contains("/data/user/0/x/files/image_cache"))
+        assertTrue(result.finalSystemPrompt.contains("/data/user/0/x/files/downloads"))
+        assertTrue(result.finalSystemPrompt.contains("no storage permission required"))
+        // 环境块属于 stable tier：位于 memory（volatile）段之前
+        val envIdx = result.finalSystemPrompt.indexOf("# Environment")
+        val volatileIdx = result.finalSystemPrompt.indexOf("═══")
+        assertTrue(envIdx in 0 until volatileIdx)
+    }
+
+    private class FakeBuiltinTool(
+        override val name: String,
+    ) : BuiltinTool() {
+
+        override suspend fun invoke(request: BuiltinToolRequest): BuiltinToolResult {
+            return BuiltinToolResult.success(message = "ok")
+        }
+    }
+}

@@ -1,0 +1,136 @@
+package com.hoerire.tools.zafiro.app
+
+import android.app.ActivityManager
+import android.app.Application
+import androidx.appcompat.app.AppCompatDelegate
+import com.google.android.material.color.DynamicColors
+import com.hoerire.tools.logging.Logger
+import com.hoerire.tools.zafiro.util.AppContext
+import com.hoerire.tools.zafiro.app.conversation.ConversationRepo
+import com.hoerire.tools.zafiro.app.crash.CrashRecorder
+import com.hoerire.tools.zafiro.app.debug.DebugLogFile
+import com.hoerire.tools.zafiro.app.notification.ResidentNotificationManager
+import com.hoerire.tools.zafiro.app.notification.TurnNotificationManager
+import com.hoerire.tools.zafiro.app.overlay.FloatingBallOverlayManager
+import com.hoerire.tools.zafiro.app.wakelock.AgentWakeLockController
+import com.hoerire.tools.zafiro.business.permission.Permission
+import com.hoerire.tools.zafiro.business.permission.PermissionManager
+import com.hoerire.tools.zafiro.business.permission.PermissionState
+import com.hoerire.tools.zafiro.repo.XRepo
+import com.hoerire.tools.zafiro.runtime.createAppRuntimeBridge
+import com.hoerire.tools.zafiro.service.requireService
+import com.hoerire.tools.zafiro.settings.RuntimeEnvironment
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import java.io.File
+
+class App : Application() {
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @androidx.compose.foundation.ExperimentalFoundationApi
+    override fun onCreate() {
+        super.onCreate()
+        // 改用旧版 TextToolbar 通道：ColorOS 的 platform 选择菜单不会回调 Compose 复制动作
+        runCatching {
+            androidx.compose.foundation.ComposeFoundationFlags.isNewContextMenuEnabled = false
+        }
+        CrashRecorder.install(this)
+        // 日志 debug 门控：release 构建 DEBUG/VERBOSE 全停，仅 INFO+ 输出
+        Logger.setDebugProvider { BuildConfig.DEBUG }
+        // 调试构建额外把日志落到 filesDir/logs/（release 不装文件后端）
+        DebugLogFile.install(this)
+        // 非主进程（目前只有 `:python`）不初始化主进程状态：上下文与持久化只属于主进程
+        if (!isMainProcess()) return
+        AppContext.provide(applicationContext)
+        XRepo.init(this.applicationContext)
+        ConversationRepo.init(this.applicationContext)
+        RuntimeEnvironment.install(createAppRuntimeBridge())
+        // 依赖装配只发生在 AppServices（主进程组合根）
+        AppServices.install(this)
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        DynamicColors.applyToActivitiesIfAvailable(this)
+        // 首启幂等铺开宿主工具集（需已授予 root；/data/local 不可写，且私有目录禁 exec）
+        applicationScope.launch { runCatching { HostToolsInstaller.install(applicationContext) } }
+        applicationScope.launch {
+            XRepo.tryPutDefaultSettings()
+        }
+        // OpenRouter 公共目录预热：免鉴权后台抓，30 分钟内不重拉；失败保留旧缓存
+        applicationScope.launch {
+            XRepo.cloudFacts.refreshOpenRouterIfStale()
+        }
+        applicationScope.launch {
+            XRepo.skills.seedDefaults()
+        }
+
+        observeFloatingBall()
+        observeResidentNotification()
+        observeAgentWakeLock()
+        TurnNotificationManager.init(this)
+    }
+
+    private fun observeAgentWakeLock() {
+        AgentWakeLockController.start(this, applicationScope)
+    }
+
+    private fun observeResidentNotification() = launchFeatureFlagObserver(
+        enabledFlow = XRepo.residentNotificationEnabledSetting,
+        permission = Permission.NOTIFICATION,
+        onPermissionMissing = { XRepo.setResidentNotificationEnabled(false) },
+    ) { enabled ->
+        if (enabled) ResidentNotificationManager.start(this) else ResidentNotificationManager.stop(
+            this
+        )
+    }
+
+    private fun observeFloatingBall() = launchFeatureFlagObserver(
+        enabledFlow = XRepo.floatingBallEnabledSetting,
+        permission = Permission.OVERLAY,
+        onPermissionMissing = { XRepo.setFloatingBallEnabled(false) },
+    ) { enabled ->
+        if (enabled) FloatingBallOverlayManager.show(this) else FloatingBallOverlayManager.dismiss()
+    }
+
+    /**
+     * 开关类功能的统一门禁：开关被打开但缺权限时回滚开关（不静默无效），
+     * 其余情况交回 [onChange] 处理。
+     */
+    private fun launchFeatureFlagObserver(
+        enabledFlow: Flow<Boolean>,
+        permission: Permission,
+        onPermissionMissing: suspend () -> Unit,
+        onChange: (Boolean) -> Unit,
+    ) {
+        applicationScope.launch {
+            enabledFlow.collect { enabled ->
+                if (enabled && requireService<PermissionManager>().status(permission) != PermissionState.GRANTED) {
+                    onPermissionMissing()
+                } else {
+                    onChange(enabled)
+                }
+            }
+        }
+    }
+
+    /**
+     * 是否主进程。进程名优先读 `/proc/self/cmdline`（内核直接给出命令行，
+     * 不依赖框架侧的内存状态），`getMyMemoryState` 仅作兜底；
+     * 两者都取不到进程名时按主进程处理——宁可多初始化，不能让主进程缺初始化。
+     */
+    private fun isMainProcess(): Boolean {
+        val fromProc = runCatching {
+            File("/proc/self/cmdline").readBytes()
+                .takeWhile { it != 0.toByte() }
+                .toByteArray()
+                .decodeToString()
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
+        val name = fromProc ?: ActivityManager.RunningAppProcessInfo().also {
+            ActivityManager.getMyMemoryState(it)
+        }.processName?.takeIf { it.isNotEmpty() }
+        return name == null || name == packageName
+    }
+
+}

@@ -1,0 +1,101 @@
+package com.hoerire.tools.zafiro.settings
+
+import com.hoerire.tools.zafiro.settings.model.RuntimeBuiltinToolSetting
+import com.hoerire.tools.zafiro.settings.model.RuntimeCustomPyTool
+import com.hoerire.tools.zafiro.settings.model.RuntimeExecutionRule
+import com.hoerire.tools.zafiro.settings.model.RuntimeLlmConfig
+import com.hoerire.tools.zafiro.settings.model.RuntimeLoadedSkill
+import com.hoerire.tools.zafiro.settings.model.RuntimeSkillMetadata
+import com.hoerire.tools.zafiro.settings.model.RuntimeToolValidation
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Assert.assertSame
+import org.junit.Test
+import java.lang.reflect.Proxy
+
+class RuntimeEnvironmentTest {
+    @After
+    fun tearDown() {
+        RuntimeEnvironment.clearForTest()
+    }
+
+    @Test
+    fun awaitSettingsGateway_waitsForDelayedBridgeInstall() = runTest {
+        val gateway = FakeRuntimeSettingsGateway()
+        val awaiting = async { RuntimeEnvironment.awaitSettingsGateway() }
+
+        installBridge(gateway)
+
+        assertSame(gateway, awaiting.await())
+    }
+
+}
+
+private fun installBridge(settingsGateway: RuntimeSettingsGateway) {
+    installBridge(createRuntimeBridge(settingsGateway))
+}
+
+private fun installBridge(bridge: Any) {
+    val install = RuntimeEnvironment::class.java.getMethod("install", bridge.javaClass)
+    install.invoke(RuntimeEnvironment, bridge)
+}
+
+private fun createRuntimeBridge(settingsGateway: RuntimeSettingsGateway): Any {
+    val hostGatewayClass = Class.forName(
+        "com.hoerire.tools.zafiro.settings.RuntimeHostGateway"
+    )
+    val runtimeBridgeClass = Class.forName(
+        "com.hoerire.tools.zafiro.settings.RuntimeBridge"
+    )
+    val hostGateway = Proxy.newProxyInstance(
+        hostGatewayClass.classLoader,
+        arrayOf(hostGatewayClass),
+    ) { _, _, _ -> false }
+    return runtimeBridgeClass
+        .getConstructor(RuntimeSettingsGateway::class.java, hostGatewayClass)
+        .newInstance(settingsGateway, hostGateway)
+}
+
+private class FakeRuntimeSettingsGateway : RuntimeSettingsGateway {
+    override suspend fun readLlmConfig(agentId: String, configId: String?): RuntimeLlmConfig =
+        RuntimeLlmConfig()
+
+    override suspend fun listEnabledSkills(): List<RuntimeSkillMetadata> = emptyList()
+
+    override suspend fun loadSkill(id: String): RuntimeLoadedSkill? = null
+
+
+    override suspend fun addMemory(value: String) = Unit
+
+    override suspend fun removeMemory(oldText: String): MemoryMutationResult =
+        MemoryMutationResult.Ok
+
+    override suspend fun replaceMemory(oldText: String, content: String): MemoryMutationResult =
+        MemoryMutationResult.Ok
+
+    override suspend fun listCustomPyTools(): List<RuntimeCustomPyTool> = emptyList()
+
+    override suspend fun saveCustomPyTool(
+        tool: RuntimeCustomPyTool,
+        overwrite: Boolean,
+    ): RuntimeToolValidation? = null
+
+    override suspend fun deleteCustomPyTool(name: String) = Unit
+
+    override suspend fun setCustomPyToolEnabled(name: String, enabled: Boolean) = Unit
+
+    override suspend fun listBuiltinToolSettings(): List<RuntimeBuiltinToolSetting> = emptyList()
+
+    override suspend fun setBuiltinToolEnabled(
+        name: String,
+        enabled: Boolean,
+    ): RuntimeToolValidation? = null
+
+    override suspend fun setBuiltinToolGroupEnabled(
+        groupId: String,
+        enabled: Boolean,
+    ): RuntimeToolValidation? = null
+
+    override suspend fun listExecutionRules(): List<RuntimeExecutionRule> = emptyList()
+}

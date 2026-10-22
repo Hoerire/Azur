@@ -1,0 +1,139 @@
+package com.hoerire.tools.zafiro.app.ui.model.home
+
+import com.hoerire.tools.zafiro.api.model.Attachment
+import com.hoerire.tools.zafiro.api.model.Conversation
+import com.hoerire.tools.zafiro.api.model.ConversationTurn
+import com.hoerire.tools.zafiro.api.model.ToolInvocation
+import com.hoerire.tools.zafiro.api.model.ToolOutcome
+import com.hoerire.tools.zafiro.api.model.TurnBlock
+import com.hoerire.tools.zafiro.api.model.TurnFailureCode
+import com.hoerire.tools.zafiro.api.model.TurnId
+import com.hoerire.tools.zafiro.chat.LlmErrorCode
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ConversationUiMapperTest {
+
+    @Test
+    fun mapsImagesThinkingAndToolOutcomes() {
+        val turns = Conversation(
+            turns = listOf(
+                ConversationTurn(
+                    id = TurnId("t0"),
+                    userText = "look",
+                    images = listOf(Attachment("/user.png", "image/png")),
+                    blocks = listOf(
+                        TurnBlock.Thinking("t0:0", "reasoning", isComplete = true),
+                        TurnBlock.Tool(
+                            "t0:1",
+                            ToolInvocation("running", "search", "Search", "{}"),
+                        ),
+                        TurnBlock.Tool(
+                            "t0:2",
+                            ToolInvocation("success", "view_image", "View image"),
+                            ToolOutcome.Succeeded("done", listOf(Attachment("/result.png"))),
+                        ),
+                        TurnBlock.Tool(
+                            "t0:3",
+                            ToolInvocation("failed", "terminal", "Terminal"),
+                            ToolOutcome.Failed("denied", "partial"),
+                        ),
+                    ),
+                ),
+            ),
+        ).toHomeTurns()
+
+        val turn = turns.single()
+        assertEquals(0L, turn.id)
+        assertEquals("/user.png", turn.images.single().path)
+        assertEquals(
+            HomeChatBlock.Thinking(0, "reasoning", isComplete = true),
+            turn.blocks[0],
+        )
+        assertEquals(HomeToolState.Running, (turn.blocks[1] as HomeChatBlock.Tool).status.state)
+        val success = (turn.blocks[2] as HomeChatBlock.Tool).status
+        assertEquals(HomeToolState.Succeeded, success.state)
+        assertEquals("done", success.resultText)
+        assertEquals("/result.png", success.images.single().path)
+        val failed = (turn.blocks[3] as HomeChatBlock.Tool).status
+        assertEquals(HomeToolState.Failed, failed.state)
+        assertEquals("denied", failed.failedReason)
+        assertEquals("partial", failed.resultText)
+    }
+
+    @Test
+    fun mapsFailureCodeAndStatusPhase() {
+        val turn = Conversation(
+            turns = listOf(
+                ConversationTurn(
+                    id = TurnId("t0"),
+                    userText = "q",
+                    blocks = listOf(
+                        TurnBlock.Failure(
+                            "t0:0",
+                            "network",
+                            TurnFailureCode.Transport
+                        )
+                    ),
+                ),
+            ),
+        ).toHomeTurns().single()
+
+        assertEquals(
+            HomeChatBlock.Error("network", LlmErrorCode.Transport),
+            turn.blocks.single(),
+        )
+    }
+
+    @Test
+    fun mapsOutputTruncatedFailureCode() {
+        val turn = Conversation(
+            turns = listOf(
+                ConversationTurn(
+                    id = TurnId("t0"),
+                    userText = "q",
+                    blocks = listOf(
+                        TurnBlock.Failure(
+                            "t0:0",
+                            null,
+                            TurnFailureCode.OutputTruncated
+                        )
+                    ),
+                ),
+            ),
+        ).toHomeTurns().single()
+
+        assertEquals(
+            HomeChatBlock.Error(null, LlmErrorCode.OutputTruncated),
+            turn.blocks.single(),
+        )
+    }
+
+    @Test
+    fun mapsIsCompactedDivider() {
+        val turns = Conversation(
+            turns = listOf(
+                ConversationTurn(
+                    id = TurnId("t0"),
+                    userText = "",
+                    isCompactedDivider = true,
+                    isCompacting = false,
+                ),
+                ConversationTurn(
+                    id = TurnId("t1"),
+                    userText = "",
+                    isCompactedDivider = true,
+                    isCompacting = true,
+                )
+            ),
+        ).toHomeTurns()
+
+        assertTrue(turns[0].isCompactedDivider)
+        assertFalse(turns[0].isCompacting)
+
+        assertTrue(turns[1].isCompactedDivider)
+        assertTrue(turns[1].isCompacting)
+    }
+}
