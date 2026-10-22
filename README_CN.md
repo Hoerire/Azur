@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-brightgreen.svg)](#requirements)
 [![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)](#requirements)
 [![Kotlin](https://img.shields.io/badge/kotlin-2.2.0-7F52FF.svg)](https://kotlinlang.org)
-[![Build](https://github.com/Hoerire/zafiro/actions/workflows/build.yml/badge.svg)](https://github.com/Hoerire/zafiro/actions/workflows/build.yml)
+[![checks](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml/badge.svg)](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml)
 
 
 Zafiro 是一个以对话驱动的 Agent 应用：它把一整套用户态工具链打包进 APK，能在设备上执行真实命令，
