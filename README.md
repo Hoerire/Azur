@@ -13,114 +13,150 @@
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license"/>
 </p>
 
-Azur is an AI coding agent that runs on your phone and needs nothing else. It ships a real toolchain inside
-the APK — CPython 3.12, a 305-applet busybox, `git`, `rg`, `jq`, `7zz`, `curl`, `sqlite3` and `aapt2` — unpacks
-it on first launch, and hands it to the model as executables. Ask it to fix a bug, and it edits the source,
-runs the tests, and rebuilds the APK on the same device it is running on.
+**An Android app that carries a full developer toolchain and compiles code on the device it runs on.**
 
-Bring your own key. Any OpenAI-compatible endpoint works, from a frontier model to a local runtime.
+Most AI apps on Android are chat windows with an API key. Azur is a chat window with a CPU attached.
+1,579 aarch64 binaries ride along inside the APK — CPython 3.12, a 305-applet busybox, git with working
+`remote-https`, ripgrep, jq, 7z, curl, sqlite3 and `aapt2` — unpacked into private storage on first launch and
+handed to the model as executables.
+
+Ask it to fix a bug in its own source tree. It reads the file, edits it, runs the tests, starts a Gradle build,
+and gives back an APK. On the phone. While the phone is running the agent that did the work.
+
+| | |
+|---|---|
+| **Package** | `com.hoerire.tools` · `minSdk 26` · `compileSdk 37` |
+| **APK** | 98 MB, 1,579 bundled binaries |
+| **Runtime** | CPython 3.12.13 (musl), complete stdlib, no Chaquopy, no wheel ABI |
+| **Shell** | busybox (305 applets) plus `rg` `fd` `fzf` `jq` `7zz` `curl` `sqlite3` `file` `rsync` `wcurl` `xz` `zstd` `lz4` `strace` |
+| **Git** | 2.45.4 with `git-core` and `remote-https` — `clone` and `push` actually work |
+| **Build tools** | `aapt2` (bionic aarch64, 3.5 MB) plus the musl `libz` it needs |
+| **Libraries** | 71 shared objects, including `ld-musl-aarch64.so.1` and `libexpat.so.1` |
+| **Cost of entry** | A key for any OpenAI-compatible endpoint |
 
 > [!IMPORTANT]
-> Android 8.0+. No root needed for the agent itself — root unlocks `shell` as `su` and the on-device build
-> environment. Accessibility service is required for screen control.
+> Android 8.0+. The agent itself runs unprivileged; root upgrades `shell` to `su` and unlocks the on-device
+> build environment. Screen control needs the accessibility service enabled.
 >
-> Grab a build from [Releases](https://github.com/Hoerire/Azur/releases/latest), or [build from source](#build).
+> Install from [Releases](https://github.com/Hoerire/Azur/releases/latest), or [build it yourself](#build).
 
-## Core Capabilities
+## The loop closes
 
-### A toolchain that travels with the app
+This is the part no other Android agent does: the toolchain is complete enough to rebuild the app you are
+talking to.
 
-Most "AI on Android" apps call an API and render text. Azur brings the other half.
+```text
+you  →  "the download badge wraps onto two lines, fix it"
+azur →  shell: rg -n 'shields.io' README.md
+     →  view_image: /data/local/aitools/out/preview.png
+     →  shell: sed -i 's/…/…/' README.md
+     →  zafiro_env: build   →  gradle :app:assembleDebug in the background
+     →  zafiro_env: status  →  BUILD SUCCESSFUL, RC=0
+     →  "rebuilt, here is the new APK"
+```
 
-- **1,579 binaries** compiled for aarch64 musl, unpacked into private storage on first launch
-- **CPython 3.12 with a working standard library** — `ssl`, `sqlite3`, `zipfile`, `xml`, `zoneinfo`, plus `requests`, `urllib3`, `html2text`
-- **`git` that can actually clone and push** — `git-core` and `remote-https` included, not a stripped-down stub
-- **`aapt2` bundled** — the one piece of the Android build chain that cannot be downloaded at runtime
-- **No chroot, no Termux, no companion app** — static musl builds run directly on stock Android
-- **Networking that works** — `netrun` routes DNS and TLS out of the app sandbox, so `curl`, `pip` and `git` behave
+Underneath sits a bootstrap path that provisions an Alpine rootfs, JDK 17 and Android SDK platforms
+35 / 36 / 37.0 the first time they are needed. The SDK is not baked into the APK; only the pieces that cannot be
+fetched later ship as assets.
 
-### Build on the phone, for the phone
+## How it runs without a chroot
 
-The agent can provision a full build environment and use it without help.
+Every binary is a static musl build, so stock Android executes them directly. Three problems had to be solved
+for that to be useful:
 
-- **`zafiro_env`** exposes seven operations: `check`, `build`, `status`, `install`, `shell`, `apk`, `snapshot`
-- **Bootstrap on demand** — pulls an Alpine rootfs, JDK 17 and Android SDK 35/36/37.0 when first needed
-- **Real Gradle builds in the background** — start, poll the log, get an APK
-- **The loop closes** — the APK it builds is the app you are talking to
+- **Networking.** App sandboxes block raw DNS and TLS. `netrun` bridges both, and `curl`, `git` and `pip` are
+  wrapped to go through it.
+- **Package installation.** `pip install` cannot run here — musl hardcodes an interpreter path Android does not
+  have. `pyinstall.sh` fetches wheels from PyPI and unpacks the pure-Python files into a shared `pylib`. Pure
+  Python only; anything with a compiled extension is rejected rather than silently bound to the wrong ABI.
+- **Asset extraction.** `aapt2` silently drops asset directories starting with `_`, which breaks
+  `zipfile/_path`, `pip/_internal` and friends. They ship as `x__<name>` and are renamed back on extraction.
 
-### An agent runtime, not a chat wrapper
+## The agent
 
-- **Typed event stream** — tool calls, compaction, sub-agents and context pressure are first-class state, not string parsing
-- **Survives process death** — conversations resume where they were
-- **Per-model settings** — provider, base URL, temperature, reasoning effort and timeouts, per model rather than globally
-- **Idle sessions release their slot**, failed requests retry to a configured count
+A turn is a typed event stream, not a string being parsed. Tool calls, compaction, sub-agents and context
+pressure are first-class state.
 
-### Twelve tools
+- Conversations survive process death; idle sessions release their model slot
+- Retries are bounded by configuration, not by luck
+- Provider, base URL, temperature, reasoning effort and timeouts are per-model settings
+- BYOK — any OpenAI-compatible endpoint, hosted or local
+
+## Twelve tools
 
 `shell` · `zafiro_env` · `screen_operation_accessibility` · `screen_operation_shell` · `screenshot` ·
 `view_image` · `launch_app` · `find_installed_apps` · `notify` · `open_uri` · `load_skill` · `memory`
 
-Each has its own switch. Screen control works through the accessibility service, or by coordinate through
-`su` when the UI tree is not exposed.
+`zafiro_env` is the build bridge: `check` (21 toolchains), `build`, `status`, `install`, `shell`, `apk`,
+`snapshot`. Screen control goes through the accessibility service for native UI, or by coordinate through `su`
+when the view tree is not exposed.
 
-### Skills, loaded on demand
+## Six skills
 
-Six documents that cost nothing until the model asks for one: `build` for the whole compile-and-package
-pipeline, `hosttools` for the bundled CLI inventory, `zafiro-cmd` for canonical tool syntax, plus
-`skill-creator`, `tool-config` and `termux`. Write your own — they are plain Markdown.
+Markdown documents, loaded only when the model asks, so an unused skill costs zero context.
 
-### Interface
+| Skill | Purpose |
+|---|---|
+| `build` | The one entry point for compiling: Gradle, AGP, SDK, NDK, `aapt2`, signing, APK inspection |
+| `hosttools` | The bundled CLI inventory, so the model stops guessing what exists |
+| `zafiro-cmd` | Canonical tool-layer syntax, so the model stops hand-rolling `su` and `chroot` |
+| `skill-creator` | Write, edit and test new skills |
+| `tool-config` | Read and change app settings by editing sandbox JSON |
+| `termux` | First-time SSH to Termux, and recovery when the link dies |
 
-Material 3 Expressive with Liquid Glass and Capsule surfaces, light/dark/system, six locales, floating ball
-for quick capture, and a `libterm` terminal with local, libsu, Shizuku and SSH backends.
+## Interface
 
-## Where it came from
+Compose throughout. Material 3 Expressive with Liquid Glass and Capsule surfaces, light/dark/system, six
+locales with per-app selection, floating ball for quick capture. The terminal is `libterm` with local, libsu,
+Shizuku and SSH backends.
 
-Azur grew out of [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1. It kept that project's shell —
-the Compose UI, the settings framework, the OKIA runtime, the `libterm` terminal — and replaced everything
-underneath: the tool execution layer, the Python story, the environment bootstrap, the build pipeline.
-Upstream is credited in the About screen.
+## Architecture
+
+| Module | Contents |
+|---|---|
+| `app/` | UI, settings, repositories, tool glue, `MainActivity` |
+| `agent-runtime/` | Turn engine, tool registry, compaction, streaming |
+| `business/api/` | Shared models and utilities |
+| `libs/libterm/` | Terminal core, runtime, backends |
+| `assets/hosttools/` | The 1,579-file toolchain and its `VERSION` fingerprint |
+| `assets/toolchain/` | `aapt2` and musl `libz` |
+| `assets/buildkit/` | Gradle init scripts for signing and lint suppression |
+| `assets/skills/` | The six skill documents |
+
+Four decisions worth knowing before you touch this tree:
+
+- **Fingerprint on content, not time.** Assets are stamped with the SHA-1 of the manifest, so an app update does
+  not re-unpack 113 MB. Missing critical assets are repaired individually.
+- **One root per package.** `/data/local/aitools` for the main build, `aitools-btN` for a test build — two
+  installs never share state.
+- **Signing is portable.** `-PRELEASE_STORE_FILE` → `keystore/debug.keystore` → `keystore/release.keystore` →
+  AGP default. A fresh clone builds with no local paths.
+- **CI checks itself.** `.github/scripts/verify_repo.py` asserts docs are complete, no keystore is committed, no
+  personal paths leaked, no tabs. `verify_hosttools.py` recomputes the asset fingerprint against `VERSION`.
 
 ## Build
 
 ```bash
 git clone https://github.com/Hoerire/Azur
-cd azur
+cd Azur
 ./gradlew :app:assembleDebug
 ```
-
-Signing is optional. The build looks for `-PRELEASE_STORE_FILE`, then `keystore/debug.keystore`, then
-`keystore/release.keystore`, and falls back to AGP's default debug key.
-
-CI runs `.github/scripts/verify_repo.py` (docs complete, no keystore committed, no personal paths, no tabs)
-and `verify_hosttools.py` (asset fingerprint matches `assets/hosttools/VERSION`).
-
-## Project Structure
-
-| Path | Contents |
-|---|---|
-| `app/` | UI, settings, repos, tool glue |
-| `agent-runtime/` | Turn engine, tool registry, compaction, streaming |
-| `business/api/` | Shared models and utilities |
-| `libs/libterm/` | Terminal core, runtime, backends |
-| `app/src/main/assets/hosttools/` | The bundled toolchain |
-| `app/src/main/assets/skills/` | The six skill documents |
-
-## Tech Stack
 
 | Layer | Choice |
 |---|---|
 | Language / UI | Kotlin 2.2.0, Jetpack Compose, Material 3 Expressive |
-| Build | AGP 9.1.1, KSP, `compileSdk 37`, `minSdk 26` |
+| Build | AGP 9.1.1 with built-in Kotlin, KSP, `compileSdk 37` |
 | Agent | OKIA runtime, kotlinx-serialization, OkHttp |
 | Storage | Room |
-| Terminal | `libterm` (libsu / Shizuku / SSH backends) |
-| Toolchain | CPython 3.12.13 (musl), busybox, git 2.45.4, aapt2 |
+| Terminal | `libterm` (libsu / Shizuku / SSH) |
+| Toolchain | CPython 3.12.13 (musl), busybox, git 2.45.4, `aapt2` |
 
-## Contributing
+## Origin
 
-Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the build loop, the asset
-fingerprint rule, and the checks CI runs.
+Azur grew out of [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1. It kept that project's shell — the
+Compose UI, the settings framework, the OKIA runtime, the `libterm` terminal — and replaced everything beneath
+it: the tool execution layer, the Python story, the environment bootstrap, the build pipeline. Upstream is
+credited in the About screen.
 
 ## License
 
