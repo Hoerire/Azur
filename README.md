@@ -121,6 +121,14 @@ common-utils/     shared utilities
 
 ---
 
+---
+
+## Attribution
+
+This project is derived from [niki914/zafiro](https://github.com/niki914/zafiro), released under
+the MIT license. The original copyright notice is retained in `LICENSE`. Substantial portions of
+the application have since been rewritten; see `CHANGELOG.md` for the current feature set.
+
 ## License
 
 See `LICENSE`.

@@ -21,7 +21,7 @@ android {
         applicationId = "com.hoerire.tools"
         minSdk = 26
         targetSdk = 34
-        versionCode = 32
+        versionCode = 33
         versionName = "1.8.1-fork"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["appLabel"] = "Zafiro"
@@ -33,15 +33,14 @@ android {
     signingConfigs {
         getByName("debug") {
             // Portable signing:
-            //   1. ZAFIRO_KEYSTORE env var (absolute path)
+            //   1. ZAFIRO_KEYSTORE env var, or -PRELEASE_STORE_FILE Gradle property
             //   2. keystore/debug.keystore or keystore/release.keystore in the repo root
-            //   3. /data/local/aitools/环境/debug.keystore (on-device build environment)
-            //   4. fall back to the default debug keystore AGP generates under ~/.android
+            //   3. fall back to the default debug keystore AGP generates under ~/.android
             val candidates = buildList {
                 System.getenv("ZAFIRO_KEYSTORE")?.takeIf { it.isNotBlank() }?.let { add(project.file(it)) }
+                (project.findProperty("RELEASE_STORE_FILE") as String?)?.takeIf { it.isNotBlank() }?.let { add(project.file(it)) }
                 add(rootProject.file("keystore/debug.keystore"))
                 add(rootProject.file("keystore/release.keystore"))
-                add(project.file("/data/local/aitools/环境/debug.keystore"))
             }
             candidates.firstOrNull { it.exists() }?.let { ks ->
                 storeFile = ks

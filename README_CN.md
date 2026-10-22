@@ -115,6 +115,13 @@ common-utils/     公共工具
 
 ---
 
+---
+
+## 来源说明
+
+本项目由 [niki914/zafiro](https://github.com/niki914/zafiro) 衍生而来，原项目以 MIT 许可证发布。
+原始版权声明保留在 `LICENSE` 中。应用的大部分内容此后已被重写，当前功能集见 `CHANGELOG.md`。
+
 ## 许可
 
 见 `LICENSE`。
