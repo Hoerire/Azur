@@ -5,11 +5,11 @@ description: Load this skill for anything involving Termux (com.termux) — firs
 
 # Termux
 
-Termux is a separate Android app. Zafiro cannot run anything inside it directly, so SSH is the only way in.
+Termux is a separate Android app. Azur cannot run anything inside it directly, so SSH is the only way in.
 
 Connecting needs host, port, username and password. Those exist only in the user's Termux install, so the user has to supply them; until all four are known no Termux work is possible. Once known, record all of them — password included — with the memory tool.
 
-Defaults of a normal Termux install: SSH is not installed out of the box, the server listens on `127.0.0.1:8022` (loopback is enough, no LAN IP or Wi-Fi involved), the username is what `whoami` prints and looks like `u0_a123`, password authentication is on by default and must stay on because Zafiro's SSH client cannot use a private key, and `sshd` is an ordinary process inside Termux that dies whenever Termux is killed — so a refused or timed-out connection usually just means Termux is no longer running.
+Defaults of a normal Termux install: SSH is not installed out of the box, the server listens on `127.0.0.1:8022` (loopback is enough, no LAN IP or Wi-Fi involved), the username is what `whoami` prints and looks like `u0_a123`, password authentication is on by default and must stay on because Azur's SSH client cannot use a private key, and `sshd` is an ordinary process inside Termux that dies whenever Termux is killed — so a refused or timed-out connection usually just means Termux is no longer running.
 
 ## No memory of Termux yet (never configured)
 
