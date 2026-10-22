@@ -15,13 +15,15 @@
 
 **An Android app that carries a full developer toolchain and compiles code on the device it runs on.**
 
-Most AI apps on Android are chat windows with an API key. Azur is a chat window with a CPU attached.
-1,579 aarch64 binaries ride along inside the APK — CPython 3.12, a 305-applet busybox, git with working
-`remote-https`, ripgrep, jq, 7z, curl, sqlite3 and `aapt2` — unpacked into private storage on first launch and
-handed to the model as executables.
+Most AI apps on Android are a conversation surface plus an API key. Azur adds local execution: the APK
+contains 1,579 aarch64 binaries — CPython 3.12, a 305-applet busybox, git with `clone` and `push`, ripgrep, jq,
+7z, curl, sqlite3 and `aapt2` — extracted to private storage on first launch and registered as executables the
+model can invoke directly.
 
-Ask it to fix a bug in its own source tree. It reads the file, edits it, runs the tests, starts a Gradle build,
-and gives back an APK. On the phone. While the phone is running the agent that did the work.
+When a task targets its own source tree, location, editing, verification and building all occur on the same
+device: read the file, modify it, run the tests, invoke Gradle, produce a new APK. No host machine is involved
+and no external build service is contacted — the toolchain emitting that artifact is the one running inside
+the app.
 
 | | |
 |---|---|
@@ -29,7 +31,7 @@ and gives back an APK. On the phone. While the phone is running the agent that d
 | **APK** | 98 MB, 1,579 bundled binaries |
 | **Runtime** | CPython 3.12.13 (musl), complete stdlib, no Chaquopy, no wheel ABI |
 | **Shell** | busybox (305 applets) plus `rg` `fd` `fzf` `jq` `7zz` `curl` `sqlite3` `file` `rsync` `wcurl` `xz` `zstd` `lz4` `strace` |
-| **Git** | 2.45.4 with `git-core` and `remote-https` — `clone` and `push` actually work |
+| **Git** | 2.45.4 with `git-core` and `remote-https`; `clone` and `push` are functional |
 | **Build tools** | `aapt2` (bionic aarch64, 3.5 MB) plus the musl `libz` it needs |
 | **Libraries** | 71 shared objects, including `ld-musl-aarch64.so.1` and `libexpat.so.1` |
 | **Cost of entry** | A key for any OpenAI-compatible endpoint |
@@ -52,7 +54,7 @@ azur →  shell: rg -n 'shields.io' README.md
      →  shell: sed -i 's/…/…/' README.md
      →  zafiro_env: build   →  gradle :app:assembleDebug in the background
      →  zafiro_env: status  →  BUILD SUCCESSFUL, RC=0
-     →  "rebuilt, here is the new APK"
+     →  build complete, new APK produced
 ```
 
 Underneath sits a bootstrap path that provisions an Alpine rootfs, JDK 17 and Android SDK platforms
@@ -98,8 +100,8 @@ Markdown documents, loaded only when the model asks, so an unused skill costs ze
 | Skill | Purpose |
 |---|---|
 | `build` | The one entry point for compiling: Gradle, AGP, SDK, NDK, `aapt2`, signing, APK inspection |
-| `hosttools` | The bundled CLI inventory, so the model stops guessing what exists |
-| `zafiro-cmd` | Canonical tool-layer syntax, so the model stops hand-rolling `su` and `chroot` |
+| `hosttools` | The bundled CLI inventory, so the model does not assume what is available |
+| `zafiro-cmd` | Canonical tool-layer syntax, so the model does not hand-roll `su` and `chroot` |
 | `skill-creator` | Write, edit and test new skills |
 | `tool-config` | Read and change app settings by editing sandbox JSON |
 | `termux` | First-time SSH to Termux, and recovery when the link dies |
@@ -123,7 +125,7 @@ Shizuku and SSH backends.
 | `assets/buildkit/` | Gradle init scripts for signing and lint suppression |
 | `assets/skills/` | The six skill documents |
 
-Four decisions worth knowing before you touch this tree:
+Four decisions that shape how this tree is modified:
 
 - **Fingerprint on content, not time.** Assets are stamped with the SHA-1 of the manifest, so an app update does
   not re-unpack 113 MB. Missing critical assets are repaired individually.

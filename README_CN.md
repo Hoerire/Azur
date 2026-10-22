@@ -15,12 +15,13 @@
 
 **一个 Android 应用，自带整套开发工具链，并能在自己运行的这台手机上编译代码。**
 
-大多数 Android 上的 AI 应用是一个聊天窗加一个 API Key。Azur 是聊天窗加一颗 CPU：APK 里塞进 1,579 个
-aarch64 二进制 —— CPython 3.12、305 个 applet 的 busybox、能真正 `clone` / `push` 的 git、ripgrep、jq、
-7z、curl、sqlite3、`aapt2` —— 首启铺进私有目录，直接交给模型当可执行文件调用。
+多数 Android 上的 AI 应用由一个对话界面和一个 API Key 构成。Azur 在此之外还具备本地执行能力：APK 内含
+1,579 个 aarch64 二进制 —— CPython 3.12、305 个 applet 的 busybox、带 `clone` 与 `push` 能力的 git、
+ripgrep、jq、7z、curl、sqlite3、`aapt2` —— 首次启动时解包至私有目录，注册为模型可直接调用的可执行文件。
 
-让它改自己源码里的一个 bug。它读文件、改代码、跑测试、起 Gradle 构建、把新的 APK 交回来。全程在这台
-手机上，而且是在正在运行这个 Agent 的手机上。
+当任务指向它自身的源码树时，定位、编辑、验证与构建均在同一设备上完成：读取文件、修改代码、执行测试、
+调用 Gradle，最终产出新的 APK。整个过程不涉及主机，也不依赖外部构建服务 —— 产出该制品的工具链，正是
+随应用运行的那一套。
 
 | | |
 |---|---|
@@ -28,7 +29,7 @@ aarch64 二进制 —— CPython 3.12、305 个 applet 的 busybox、能真正 `
 | **APK** | 98 MB，内含 1,579 个二进制 |
 | **运行时** | CPython 3.12.13（musl），标准库完整，不依赖 Chaquopy，没有 wheel ABI 包袱 |
 | **Shell** | busybox（305 个 applet），外加 `rg` `fd` `fzf` `jq` `7zz` `curl` `sqlite3` `file` `rsync` `wcurl` `xz` `zstd` `lz4` `strace` |
-| **Git** | 2.45.4，带 `git-core` 与 `remote-https` —— clone 和 push 是真的能用 |
+| **Git** | 2.45.4，含 `git-core` 与 `remote-https`，`clone` 与 `push` 均可用 |
 | **构建工具** | `aapt2`（bionic aarch64，3.5 MB）+ 它需要的 musl `libz` |
 | **依赖库** | 71 个 `.so`，含 `ld-musl-aarch64.so.1` 与 `libexpat.so.1` |
 | **门槛** | 一个任意 OpenAI 兼容端点的 Key |
@@ -50,7 +51,7 @@ Azur →  shell: rg -n 'shields.io' README.md
      →  shell: sed -i 's/…/…/' README.md
      →  zafiro_env: build   →  后台跑 gradle :app:assembleDebug
      →  zafiro_env: status  →  BUILD SUCCESSFUL, RC=0
-     →  "编好了，新 APK 在这"
+     →  构建完成，已产出新 APK
 ```
 
 底下是一条自举链路：第一次需要时去拉 Alpine rootfs、JDK 17、Android SDK 35 / 36 / 37.0。SDK 不进 APK，
@@ -91,8 +92,8 @@ Markdown 文档，模型主动要才加载，不用的技能占用为零。
 | 技能 | 用途 |
 |---|---|
 | `build` | 编译唯一入口：Gradle、AGP、SDK、NDK、`aapt2`、签名、APK 分析 |
-| `hosttools` | 随包 CLI 清单，省得模型瞎猜环境里有什么 |
-| `zafiro-cmd` | 工具层规范写法，省得模型自己拼 `su` 和 `chroot` |
+| `hosttools` | 随包 CLI 清单，避免模型对可用命令作假设 |
+| `zafiro-cmd` | 工具层命令的规范写法，避免模型自行拼接 `su` 与 `chroot` |
 | `skill-creator` | 写、改、测新技能 |
 | `tool-config` | 靠改沙箱里的 JSON 读写应用设置 |
 | `termux` | Termux 首次 SSH 配置，以及断连恢复 |
@@ -115,7 +116,7 @@ Markdown 文档，模型主动要才加载，不用的技能占用为零。
 | `assets/buildkit/` | 签名与关闭 lint 的 Gradle init 脚本 |
 | `assets/skills/` | 六个技能文档 |
 
-改这个仓库之前，值得知道的四条设计决定：
+四条决定影响着这个仓库的改动方式：
 
 - **指纹绑内容，不绑时间**。指纹算的是资源清单的 SHA-1，所以应用升级不会重解 113 MB；缺失的关键资产
   单独补。
