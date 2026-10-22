@@ -80,9 +80,7 @@ object PtyHost {
         }
 
     private fun build(context: Context, sid: String, identity: TerminalIdentity, cwd: String?): PtySession {
-        val home = File(context.filesDir, "pty-home")
-        val legacy = File(context.filesDir, "termux-home")
-        if (!home.exists() && legacy.exists()) legacy.renameTo(home)
+        val home = File(context.filesDir, "pty-home").apply { mkdirs() }
         home.mkdirs()
 
         val shell = if (identity == TerminalIdentity.Su) "/system/bin/su" else "/system/bin/sh"

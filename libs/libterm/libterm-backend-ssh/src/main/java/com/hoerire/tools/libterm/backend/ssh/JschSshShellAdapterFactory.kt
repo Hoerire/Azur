@@ -20,7 +20,7 @@ import java.io.InputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import java.io.OutputStream as JavaOutputStream
 
-/** SSH 远端 PTY 尺寸，与本地 TermuxPty 保持一致（见 HANDOFF-NEXT §6）。 */
+/** SSH 远端 PTY 尺寸，与本地 PtyHost 保持一致（见 HANDOFF-NEXT §6）。 */
 private const val SSH_PTY_COLUMNS = 200
 private const val SSH_PTY_ROWS = 24
 
@@ -45,7 +45,7 @@ internal class JschSshShellAdapterFactory(
                 channel = session.openChannel("shell") as ChannelShell
                 channel.setPty(true)
                 // 必须显式设尺寸：JSch 默认 PTY 是 80x24，远程长命令回显会被折断。
-                // 与本地 PTY（TermuxPty 200x24）对齐；像素按 cell 8x16 折算。
+                // 与本地 PTY（PtyHost 200x24）对齐；像素按 cell 8x16 折算。
                 channel.setPtySize(SSH_PTY_COLUMNS, SSH_PTY_ROWS, SSH_PTY_COLUMNS * 8, SSH_PTY_ROWS * 16)
                 val shellOutput = channel.inputStream
                 val shellInput = channel.outputStream

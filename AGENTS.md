@@ -4,7 +4,7 @@
 ## 1. 架构事实（改代码前必读）
 
 - 模块：`app`（应用/UI/设置/工具管理）、`agent-runtime`（Agent 循环/提示词/内置工具/本地执行）、
-  `business/*`（api agent files notification application permission）、`libs/*`（logging okia termux）、
+  `business/*`（api agent files notification application permission）、`libs/*`（logging okia）、
   `ui-kit`、`store`、`xsettings`、`remote-view`、`common-utils`。
 - **没有 Chaquopy、没有内置 Python 运行时、没有 MCP、没有更新检测、没有 Xposed 接管**。不要重新引入。
 - Python 能力 = 宿主 `files/hosttools/bin/python3`（CPython 3.12.13 musl），经 `shell` 工具以 **root** 调用。
