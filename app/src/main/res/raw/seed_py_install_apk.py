@@ -5,7 +5,7 @@
 `pm install` 不带 -r 的既有语义：包已存在时报 INSTALL_FAILED_ALREADY_EXISTS，
 此时视为"已安装，跳过"。--force 时加 -r 覆盖安装。
 
-用法（Termux 或任意可调 su 的环境）：
+用法（任意可调 su 的环境）：
     python3 install_apk.py https://example.com/app.apk
     python3 install_apk.py --force https://example.com/app.apk
 

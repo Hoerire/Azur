@@ -4,7 +4,7 @@
 默认目录为应用私有 downloads 子目录（由宿主注入参数，本脚本不自行决定），
 进程私有可写、零外部存储权限负担。下载后清理与重命名交由调用方处理。
 
-用法（Termux 或任意可调 python3 的环境）：
+用法（任意可调 python3 的环境）：
     python3 download_file.py https://example.com/file.png
     python3 download_file.py https://example.com/file.png --filename out.png
 
