@@ -10,19 +10,9 @@ assemble an APK on the device itself.
 
 Package name: `com.hoerire.tools`. Measured release: `Anvil-1.0.apk`, 98,110,774 bytes.
 
-## Origin
+## The toolchain
 
-Anvil started from [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1 and kept its Compose UI shell,
-settings framework, OKIA agent runtime and `libterm` terminal. Everything under that surface was rewritten:
-the tool execution layer, the Python story, the environment bootstrap, the settings schema and the build
-pipeline. Upstream is credited in the About screen.
-
-## What is different from upstream
-
-### 1. The toolchain ships inside the APK
-
-Upstream expects the device to already have working tools, or delegates Python to an embedded interpreter.
-Anvil ships 1,579 files of real aarch64 binaries as assets and materialises them at
+1,579 files of real aarch64 binaries ship as assets and materialise at
 `/data/user/0/com.hoerire.tools/files/hosttools` on first launch.
 
 | Component | Detail |
@@ -35,73 +25,34 @@ Anvil ships 1,579 files of real aarch64 binaries as assets and materialises them
 | Android build tool | `aapt2` (bionic aarch64, 3.5 MB) plus the musl `libz` it needs |
 | Runtime libs | 71 shared objects, including `ld-musl-aarch64.so.1` and `libexpat.so.1` (needed by `pyexpat`) |
 
-Those binaries are static musl builds, so they run on stock Android without a chroot. Networking goes
-through `netrun`, which routes DNS and TLS out of the app sandbox; `curl`, `pip` and `git` all wrap it.
+These are static musl builds, so they run on stock Android without a chroot. Networking goes through
+`netrun`, which routes DNS and TLS out of the app sandbox; `curl`, `pip` and `git` all wrap it.
 
-### 2. The build environment lives on the device
+Because `pip install` cannot run on this platform — musl hardcodes an interpreter path Android does not
+have — packages are installed by `pyinstall.sh`: fetch the wheel from PyPI, unpack the pure-Python files
+into a shared `pylib` directory. Pure Python only; anything with a compiled extension is rejected.
 
-The `zafiro_env` tool is new. It exposes seven operations to the model: `check`, `build`, `status`,
-`install`, `shell`, `apk` and `snapshot`. With it the agent can look at 21 toolchains, start a Gradle
-build in the background, poll the log, and extract an extension pack — all without a host machine.
+## On-device build environment
+
+The `zafiro_env` tool exposes seven operations to the model: `check`, `build`, `status`, `install`, `shell`,
+`apk` and `snapshot`. With it the agent can inspect 21 toolchains, start a Gradle build in the background,
+poll the log, and extract an extension pack — no host machine involved.
 
 Behind it sits a bootstrap path that pulls an Alpine rootfs, a JDK 17 and Android SDK platforms 35/36/37.0
-on demand. Nothing about the SDK is baked into the APK; only the pieces that cannot be fetched later
-(`aapt2`, its shim, signing init script, no-lint init script) ship as assets.
+on demand. The SDK is not baked into the APK; only the pieces that cannot be fetched later (`aapt2`, its
+shim, the signing init script, the no-lint init script) ship as assets.
 
-That combination is what makes self-hosting possible: `build` assembles `:app:assembleDebug` from source
-that the agent just edited, on the phone that is running the agent.
+The result is self-hosting: `build` assembles `:app:assembleDebug` from source the agent just edited, on the
+phone running the agent.
 
-### 3. Python is a real interpreter, not an embedded runtime
-
-Upstream ran Python through Chaquopy, which drags a wheel-based ABI into the APK. Anvil removed it and
-deleted the whole surface that depended on it: the `execute_python` tool, `py_meta_tools`, the custom
-Python tool editor, the runtime Python packages and their tests. The replacement is a plain CPython process
-launched with `su`, which means unsupported wheels fail loudly instead of silently binding to a mismatched ABI.
-
-Because `pip install` cannot run on this platform (musl hardcodes an interpreter path Android does not
-have), packages are installed by `pyinstall.sh`: fetch the wheel from PyPI, unpack the pure-Python files
-into a shared `pylib` directory. Pure-Python only — anything with a compiled extension is rejected.
-
-### 4. Startup update check
-
-On cold start the app asks GitHub for the latest release under `Hoerire/anvil`, compares the tag against the
-running `versionName`, and shows a dialog when a newer one exists. Dismissing it records that version, so the
-same release interrupts once. Drafts and older prereleases are skipped; the check falls back to the most
-recent release when no stable one is published yet.
-
-### 5. Removed from upstream
-
-| Removed | Reason |
-|---|---|
-| Chaquopy and everything downstream | Replaced by the bundled CPython above |
-| MCP client and server | No MCP dependency remains in the tree |
-| Xposed modules | No hooking of external assistants; no `xposed_init` asset |
-| Ssh tool | Terminal SSH backends remain, the separate tool does not |
-| `phone-use` and `install-skill-from-github` skills | Superseded by `zafiro-cmd` and `hosttools` |
-
-### 6. Engineering fixes you cannot see but will feel
-
-- **Install fingerprint.** Upstream rebuilt the asset tree whenever `lastUpdateTime` changed, which meant
-  every app update re-unpacked 113 MB and looked like a hang. Anvil stamps on the SHA-1 of the asset
-  manifest instead, and repairs only missing critical assets.
-- **Root isolation.** The tool root is derived per package (`/data/local/aitools`, or `aitools-btN` for a
-  test build), so two builds never share state.
-- **Portable signing.** `build.gradle.kts` walks `-PRELEASE_STORE_FILE` → `keystore/debug.keystore` →
-  `keystore/release.keystore` → AGP's default, so a fresh clone builds without any local paths.
-- **`aapt` underscore quirk.** `aapt2` silently drops asset directories whose names start with `_`, which
-  broke `zipfile/_path`, `pip/_internal` and friends. Those directories ship as `x__<name>` and are renamed
-  back during extraction.
-
-## Features
-
-### Agent runtime
+## Agent runtime
 
 A turn is a stream of typed events rather than a string of text: the engine tracks tool calls, compaction,
 sub-agents and context pressure as first-class state. Conversations survive process death, idle sessions
 release their model slot, and a failed request retries up to a configured attempt count. Provider selection,
 base URL, temperature, reasoning effort and timeouts are per-model settings rather than global switches.
 
-### Built-in tools
+## Built-in tools
 
 Twelve tools, each with its own switch in settings.
 
@@ -120,10 +71,10 @@ Twelve tools, each with its own switch in settings.
 | `screen_operation_accessibility` | Read and drive the UI tree through the accessibility service |
 | `screen_operation_shell` | Tap, swipe and send key events by coordinate |
 
-The tool settings page is flat rather than grouped: each tool is one switch, and the two screen-operation
-tools collapse into one group entry.
+The tool settings page is flat: each tool is one switch, and the two screen-operation tools collapse into a
+single group entry.
 
-### Skills
+## Skills
 
 Six skills, loaded on demand so they cost nothing until used.
 
@@ -136,11 +87,32 @@ Six skills, loaded on demand so they cost nothing until used.
 | `tool-config` | Read and change app settings by editing the JSON files in the sandbox |
 | `termux` | First-time SSH setup to Termux and recovery when a connection breaks |
 
-### Interface
+## Interface
 
 Compose UI on all screens, Material 3 Expressive plus Liquid Glass and Capsule surfaces, light/dark/system,
 per-app language selection across six locales, floating ball for quick capture, and a terminal built on
 `libterm` with local, libsu, Shizuku and SSH backends.
+
+## Update check
+
+On cold start the app asks GitHub for the latest release, compares the tag against the running `versionName`,
+and shows a dialog when a newer one exists. Dismissing it records that version, so the same release
+interrupts once. Drafts are skipped, and the check falls back to the most recent release when no stable one
+is published yet.
+
+## Design notes
+
+Four decisions worth knowing about if you work on this tree.
+
+- **Install fingerprint.** Assets are stamped with the SHA-1 of the asset manifest rather than an install
+  timestamp, so an app update does not re-unpack 113 MB. Missing critical assets are repaired individually.
+- **Root isolation.** The tool root is derived per package (`/data/local/aitools`, or `aitools-btN` for a
+  test build), so two builds on one device never share state.
+- **Portable signing.** `build.gradle.kts` walks `-PRELEASE_STORE_FILE` → `keystore/debug.keystore` →
+  `keystore/release.keystore` → AGP's default, so a fresh clone builds without any local paths.
+- **`aapt` underscore quirk.** `aapt2` silently drops asset directories whose names start with `_`, which
+  breaks `zipfile/_path`, `pip/_internal` and friends. Those directories ship as `x__<name>` and are renamed
+  back during extraction.
 
 ## Requirements
 
@@ -163,8 +135,8 @@ Optional signing, strongest first: `-PRELEASE_STORE_FILE=/path/keystore` plus th
 `keystore/debug.keystore` on a build machine. Without either, AGP's default debug keystore is used.
 
 The repository checks itself in CI: `.github/scripts/verify_repo.py` asserts documentation is complete, no
-keystore is committed, no personal paths leaked and no tab characters crept in;
-`verify_hosttools.py` recomputes the asset fingerprint against `assets/hosttools/VERSION`.
+keystore is committed, no personal paths leaked and no tab characters crept in; `verify_hosttools.py`
+recomputes the asset fingerprint against `assets/hosttools/VERSION`.
 
 ## Project layout
 
@@ -194,5 +166,4 @@ keystore is committed, no personal paths leaked and no tab characters crept in;
 
 ## License
 
-MIT. Original work copyright (c) 2026 niki914; modifications and additions copyright (c) 2026 Hoerire.
-See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
