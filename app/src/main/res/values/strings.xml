@@ -600,4 +600,8 @@
     <string name="ui_settings_buildkit_root_title">需要 root 权限</string>
     <string name="ui_settings_buildkit_root_text">开发环境需要超级用户（SU）权限，请先授予本应用的 root 权限后重试。</string>
     <string name="ui_settings_buildkit_root_ok">确定</string>
+    <string name="update_dialog_title">发现新版本 %1$s</string>
+    <string name="update_dialog_current">当前版本 %1$s。</string>
+    <string name="update_dialog_open">去下载</string>
+    <string name="update_dialog_later">以后再说</string>
 </resources>

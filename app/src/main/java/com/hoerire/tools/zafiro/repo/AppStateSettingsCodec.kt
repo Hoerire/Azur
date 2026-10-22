@@ -20,6 +20,8 @@ internal data class AppStateSettings(
     val onboardingCompleted: Boolean = false,
     @SerialName("last_opened_conversation_id")
     val lastOpenedConversationId: String = "",
+    @SerialName("last_notified_update_version")
+    val lastNotifiedUpdateVersion: String = "",
     /** BCP-47 tag；空串 = 跟随系统语言。 */
     @SerialName("language_tag")
     val languageTag: String = "",

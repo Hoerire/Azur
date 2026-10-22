@@ -7,15 +7,19 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.hoerire.tools.logging.Logger
 import com.hoerire.tools.uikit.infra.GlobalTouchDispatcher
 import com.hoerire.tools.zafiro.app.crash.CrashRecorder
+import com.hoerire.tools.zafiro.app.ui.UpdateDialogHost
 import com.hoerire.tools.zafiro.app.ui.ZafiroApp
 import com.hoerire.tools.zafiro.app.ui.model.AppLaunchDecision
 import com.hoerire.tools.zafiro.app.ui.model.ThemeController
 import com.hoerire.tools.zafiro.business.application.ApplicationService
+import com.hoerire.tools.zafiro.repo.UpdateCheckHolder
+import kotlinx.coroutines.launch
 import com.hoerire.tools.zafiro.repo.XRepo
 import com.hoerire.tools.zafiro.service.findService
 import com.hoerire.tools.zafiro.service.requireService
@@ -72,10 +76,16 @@ class MainActivity : AppCompatActivity() {
             Bootstrap.Gate.READY -> Unit
         }
 
+        // 冷启动检查一次更新，结果由 UpdateDialogHost 负责展示
+        lifecycleScope.launch {
+            UpdateCheckHolder.runOnce(BuildConfig.VERSION_NAME)
+        }
+
         setContent {
             ZafiroApp(
                 launchDecision = launchDecision,
             )
+            UpdateDialogHost()
         }
     }
 

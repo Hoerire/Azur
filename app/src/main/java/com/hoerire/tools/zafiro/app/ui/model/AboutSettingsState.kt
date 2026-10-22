@@ -86,7 +86,7 @@ internal fun buildIssueUri(title: String, body: String): String {
     return Uri.Builder()
         .scheme("https")
         .authority("github.com")
-        .path("/niki914/zafiro/issues/new")
+        .path("/Hoerire/anvil/issues/new")
         .appendQueryParameter("title", title)
         .appendQueryParameter("body", body)
         .build()

@@ -275,6 +275,11 @@ object XRepo {
         update = { copy(lastOpenedConversationId = it) },
         normalize = { it.trim() },
     )
+    private val lastNotifiedUpdateVersionField = PlainAppStateField(
+        select = { lastNotifiedUpdateVersion },
+        update = { copy(lastNotifiedUpdateVersion = it) },
+        normalize = { it.trim() },
+    )
     private val languageTagField = PlainAppStateField(
         select = { languageTag },
         update = { copy(languageTag = it) },
@@ -317,6 +322,8 @@ object XRepo {
     suspend fun languageTag(): String = languageTagField.get()
 
     suspend fun setLanguageTag(tag: String) = languageTagField.set(tag)
+    suspend fun lastNotifiedUpdateVersion(): String = lastNotifiedUpdateVersionField.get()
+    suspend fun setLastNotifiedUpdateVersion(value: String) = lastNotifiedUpdateVersionField.set(value)
 
     suspend fun loadLastConversationOnStartup(): Boolean = loadLastConversationOnStartupField.get()
 

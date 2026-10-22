@@ -467,4 +467,8 @@
 
     <!-- Text Actions -->
     <string name="crash_startup_copied_toast">Stack trace copied to clipboard. Please send it to the developer.</string>
+    <string name="update_dialog_title">Version %1$s is available</string>
+    <string name="update_dialog_current">You are on %1$s.</string>
+    <string name="update_dialog_open">Download</string>
+    <string name="update_dialog_later">Later</string>
 </resources>

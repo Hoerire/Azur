@@ -33,7 +33,6 @@ The original copyright notice is kept verbatim in [LICENSE](LICENSE).
 | Python | Interpretation ran inside the app through an embedded runtime | A real CPython 3.12.13 (musl) ships in the APK and runs from private storage |
 | Tool protocol | MCP client and server bundled | Removed entirely — no MCP code or dependency remains |
 | Assistant takeover | Xposed modules hooked external voice assistants | Removed; the tree contains no Xposed modules |
-| Update checking | In-app update prompt | Removed |
 | Tool surface | Python-defined custom tools registered at runtime | Twelve first-class built-in tools behind a typed registry, with per-tool switches |
 
 **Toolchain, shipped instead of assumed**
