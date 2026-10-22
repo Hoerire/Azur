@@ -6,7 +6,7 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
-## [32] - 2026-10-22
+## [33] - 2026-10-23
 
 ### Added
 - On-device toolchain bundled in the APK: CPython 3.12.13, ripgrep, jq, 7z, curl, sqlite3,
@@ -27,6 +27,8 @@ All notable changes are documented here. The format follows
   during unpacking instead of being dropped by the packaging step.
 - The unpack fingerprint is derived from content, so app updates no longer re-extract the whole
   toolchain.
+- `.gitignore` patterns no longer drop bundled Python files, so a fresh clone carries a complete
+  toolchain and matches the shipped fingerprint.
 
-[Unreleased]: https://github.com/Hoerire/zafiro/compare/v32...HEAD
-[32]: https://github.com/Hoerire/zafiro/releases/tag/v32
+[Unreleased]: https://github.com/Hoerire/zafiro/compare/v33...HEAD
+[33]: https://github.com/Hoerire/zafiro/releases/tag/v33
