@@ -162,10 +162,10 @@ object HostToolsInstaller {
         runCatching { RuntimeEnvironment.aitoolsRoot = dest }
         runCatching {
             val cmd = StringBuilder("mkdir -p $dest; ")
-            // 旧版中文目录一次性迁移（目标不存在才 mv）：升级机不再留旧目录残留
+            // 兼容旧布局：目标不存在才 mv，避免覆盖已有数据
             listOf(
-                "源码" to "src", "工程" to "project", "产物" to "out",
-                "日志" to "logs", "临时" to "tmp", "环境" to "env", "文档" to "docs",
+                "src" to "src", "project" to "project", "out" to "out",
+                "logs" to "logs", "tmp" to "tmp", "env" to "env", "文档" to "docs",
             ).forEach { (old, new) ->
                 cmd.append("[ -d '$dest/$old' ] && [ ! -e '$dest/$new' ] && mv '$dest/$old' '$dest/$new'; ")
             }

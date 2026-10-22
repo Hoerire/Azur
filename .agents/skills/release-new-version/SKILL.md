@@ -5,8 +5,8 @@ description: Use when the user wants to release a new Forge version — drafting
 
 > **本仓库发版路径（本节优先于正文）**
 > - 本仓库**无 `.git`、无 CI、无 gh**，正文里的 tag push / `gh release create` / Xposed 仓库步骤在本仓库不执行；`scripts/release-exec.sh` 仅在带 git 的上游克隆里有效。
-> - 实际出包：改 `app/build.gradle.kts` 的 versionCode → `sh 工程/sync.sh zafiro-15-1.8.1-Fork` → `cd /data/local/aitools && ZAFIRO_VARIANT=debug sh env.sh build --max-workers=1`（**VARIANT 必填**，默认 release 而 app 无该变体）。
-> - 校验：日志出现 `RC=0` + `size:` + `md5:`；产物落 `/data/local/aitools/产物/`。
+> - 实际出包：改 `app/build.gradle.kts` 的 versionCode → `sh project/sync.sh zafiro-15-1.8.1-Fork` → `cd /data/local/aitools && ZAFIRO_VARIANT=debug sh env.sh build --max-workers=1`（**VARIANT 必填**，默认 release 而 app 无该变体）。
+> - 校验：日志出现 `RC=0` + `size:` + `md5:`；产物落 `/data/local/aitools/out/`。
 > - 装包前必须先输出摘要（改动文件表 + versionCode + size + md5），再 `pm install -r -d`。
 > - 文案：`README.md` / `README_CN.md` 的「当前能力」与「设计取舍」两节；
 > - 正文 Phase 1–3（版本号决策、文案格式、pitfalls、hard rules）仍然适用。

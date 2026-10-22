@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * 本机构建环境入口工具（zafiro_env）。
- * 包一层 ${ROOT}/环境/env.sh：App 构建、native 工具链检查、扩展包解压、容器内命令。
+ * 包一层 ${ROOT}/env/env.sh：App 构建、native 工具链检查、扩展包解压、容器内命令。
  * 构建走后台 + 日志，避免把工具调用卡在几分钟的 gradle 上。
  */
 class ZafiroEnvBuiltin : BuiltinTool() {
@@ -24,7 +24,7 @@ class ZafiroEnvBuiltin : BuiltinTool() {
     override val name: String = "zafiro_env"
 
     override val description: String =
-        "构建环境入口：构建/编译/打包/出APK/工具链/gcc/clang/cmake/ninja/Rust/Go/Node/NDK/环境缺失/扩展包解压，先用这个工具，不要先 ls -R 或 find / 摸盘。\n" +
+        "构建环境入口：构建/编译/打包/出APK/工具链/gcc/clang/cmake/ninja/Rust/Go/Node/NDK/env缺失/扩展包解压，先用这个工具，不要先 ls -R 或 find / 摸盘。\n" +
         "Build-environment entry for this device (App build + native toolchain).\n" +
                 "action=check   -> list 21 compilers/toolchains (gcc/clang/cmake/ninja/git/node/go/rust/...) with versions\n" +
                 "action=build   -> start gradle :app:assembleDebug in background, args passed to build-src.sh; returns log path, poll with action=status\n" +
@@ -99,9 +99,9 @@ class ZafiroEnvBuiltin : BuiltinTool() {
         }
 
         val output = if (action == "shell") {
-            sh("sh ${ROOT}/环境/run.sh /bin/sh -c ${quote(cmd)}", timeoutSeconds)
+            sh("sh ${ROOT}/env/run.sh /bin/sh -c ${quote(cmd)}", timeoutSeconds)
         } else {
-            sh("sh ${ROOT}/环境/env.sh $body", timeoutSeconds)
+            sh("sh ${ROOT}/env/env.sh $body", timeoutSeconds)
         }
         val ok = !output.contains("[timeout]")
         val payload = JsonObject(
@@ -119,14 +119,14 @@ class ZafiroEnvBuiltin : BuiltinTool() {
         val src = resolveBuildProject()
             ?: return@withContext BuiltinToolResult.failure(
                 code = "PROJECT_NOT_FOUND",
-                message = "工程/ 下没有可构建的项目，源码/ 里也没有可复制的模板。",
-                hint = "约定：新项目在 工程/<名字>/ 下创建；模板放 源码/。先确认 ${ROOT}/源码/zterm-work 存在，或直接把源码树放到 工程/ 下。",
+                message = "project/ 下没有可构建的项目，源码/ 里也没有可复制的模板。",
+                hint = "约定：新项目在 工程/<名字>/ 下创建；模板放 源码/。先确认 ${ROOT}/src/zterm-work 存在，或直接把源码树放到 工程/ 下。",
             )
-        val log = "${ROOT}/日志/build-py.log"
+        val log = "${ROOT}/logs/build-py.log"
         val inner = "cd ${ROOT} && ZAFIRO_BASE=${ROOT} ZAFIRO_A=${ROOT} ZAFIRO_SRC=" + src + " " +
-                "sh ${ROOT}/环境/env.sh build " + args
+                "sh ${ROOT}/env/env.sh build " + args
         sh(
-            "setsid nohup sh ${ROOT}/环境/build_queue.sh " + slots + " '" + log + "' " +
+            "setsid nohup sh ${ROOT}/env/build_queue.sh " + slots + " '" + log + "' " +
                     "sh -c " + quote(inner) + " >/dev/null 2>&1 < /dev/null &",
             20L,
         )
@@ -149,10 +149,10 @@ class ZafiroEnvBuiltin : BuiltinTool() {
     private suspend fun resolveBuildProject(): String? {
         System.getenv("ZAFIRO_SRC")?.takeIf { it.isNotBlank() }?.let { return it }
         if (java.io.File(BUILD_PROJECT + "/gradlew").exists()) return BUILD_PROJECT
-        pickTree("${ROOT}/工程")?.let { return it }
-        val template = pickTree("${ROOT}/源码") ?: return null
+        pickTree("${ROOT}/project")?.let { return it }
+        val template = pickTree("${ROOT}/src") ?: return null
         val name = "build-" + java.text.SimpleDateFormat("MMdd-HHmm", java.util.Locale.US).format(java.util.Date())
-        val dest = "${ROOT}/工程/" + name
+        val dest = "${ROOT}/project/" + name
         val out = sh(
             "cd " + quote(template) + " && mkdir -p " + quote(dest) + " && " +
                 "tar cf - --exclude=./app/build --exclude=./.gradle --exclude=./.kotlin . | (cd " + quote(dest) + " && tar xf -) && echo COPY_OK",
@@ -220,8 +220,8 @@ class ZafiroEnvBuiltin : BuiltinTool() {
     /** 固定目录骨架（幂等，走 su）。 */
     private suspend fun ensureBaseDirs() {
         sh(
-            "mkdir -p ${ROOT}/环境 ${ROOT}/工程 ${ROOT}/产物 " +
-                    "${ROOT}/日志 ${ROOT}/临时 ${ROOT}/源码",
+            "mkdir -p ${ROOT}/env ${ROOT}/project ${ROOT}/out " +
+                    "${ROOT}/logs ${ROOT}/tmp ${ROOT}/src",
             20L,
         )
     }
@@ -264,8 +264,8 @@ class ZafiroEnvBuiltin : BuiltinTool() {
     private companion object {
         /** 构建/工具根目录：主包 ${ROOT}，测试包派生独立根，互不污染。 */
         val ROOT: String get() = com.hoerire.tools.zafiro.settings.RuntimeEnvironment.aitoolsRoot
-        val ENV_SH: String get() = ROOT + "/环境/env.sh"
-        val BUILD_PROJECT: String get() = ROOT + "/工程/zafiro-ui-h1"
+        val ENV_SH: String get() = ROOT + "/env/env.sh"
+        val BUILD_PROJECT: String get() = ROOT + "/project/zafiro-ui-h1"
         // 上游原版目录名前缀：版本号每代变（14-1.8.0 -> 15-1.8.1），写死完整名会导致 pickTree 跳不过上游
         const val UPSTREAM_PREFIX = "zafiro-1"
         const val PACK_DIR = "/storage/emulated/0/Download"

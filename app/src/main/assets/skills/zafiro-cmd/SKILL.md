@@ -37,7 +37,7 @@ sh /data/local/aitools/env-doctor.sh        # 25 项实测体检，缺什么会�
 ```
 - `args` 只放 gradle 参数，不要带 cd，不要带 build-src.sh。
 - 返回带 `src:`（本次工程目录）和 `slot=N`（并发槽位），抢不到槽会排队，不会拒绝。
-- 成功判据：`status` 出现 `BUILD SUCCESSFUL` 且 `RC=0`，再核 `产物/` 的文件大小与 md5。
+- 成功判据：`status` 出现 `BUILD SUCCESSFUL` 且 `RC=0`，再核 `out/` 的文件大小与 md5。
 
 ## 3. 容器内执行（实测）
 ```
@@ -50,7 +50,7 @@ sh /data/local/aitools/env-doctor.sh        # 25 项实测体检，缺什么会�
 {"action":"apk","cmd":"add --no-cache jq"}    # 装包（腾讯源）
 ```
 **临时铁律**：临时文件、构建目录、草稿一律放 `/data/local/aitools/tmp/` —— 这是唯一被 run.sh 绑进容器的临时目录，宿主与容器同一份。禁用 `/tmp`、`/sdcard`；`/data/local/tmp` 只给 `pm install` 用。
-容器 `/tmp` 是 rootfs 内部、与宿主不同份，产物会丢 → 一律不用。`临时/` 实测 cmake+ninja 零 `bad depfile` 噪音。
+容器 `/tmp` 是 rootfs 内部、与宿主不同份，产物会丢 → 一律不用。`tmp/` 实测 cmake+ninja 零 `bad depfile` 噪音。
 
 ## 4. 宿主侧操作（不经过容器）
 ```
@@ -73,5 +73,5 @@ tail -20 /data/local/aitools/logs/build-py.log
 - 看到 `ENV_NOT_INSTALLED` / `PACK_NOT_FOUND`：跑 `sh /data/local/aitools/env-doctor.sh` 看缺哪项，按 fix 行手动补（**没有 deploy 了**）。
 
 ## 目录地图（先读这个）
-`/data/local/aitools/{源码,工程,产物,日志,tmp}` + `环境/`（构建工具链，缺件跑 env-doctor）。
-`源码/zafiro-15-1.8.1-Fork` 就是权威源码树，直接改，别管它内部模块怎么分。
+`/data/local/aitools/{源码,工程,产物,日志,tmp}` + `env/`（构建工具链，缺件跑 env-doctor）。
+`src/zafiro-15-1.8.1-Fork` 就是权威源码树，直接改，别管它内部模块怎么分。

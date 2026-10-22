@@ -16,14 +16,14 @@
 
 ```sh
 # 源码树改完必须同步到工程树（单向镜像，工程树不手改）
-sh /data/local/aitools/工程/sync.sh zafiro-15-1.8.1-Fork
+sh /data/local/aitools/project/sync.sh zafiro-15-1.8.1-Fork
 # 构建（VARIANT=debug 必填，脚本默认 release，而 app 无 release 变体）
 cd /data/local/aitools && ZAFIRO_VARIANT=debug sh env.sh build --max-workers=1
 # 产物
-/data/local/aitools/产物/*.apk   # RC=0 + size/md5 才算出包成功
+/data/local/aitools/out/*.apk   # RC=0 + size/md5 才算出包成功
 ```
 
-改了 `assets/**` 或 Kotlin 之后先 `rm -rf 工程/<tree>/app/build`，否则 Gradle 判 up-to-date 不重打包。
+改了 `assets/**` 或 Kotlin 之后先 `rm -rf project/<tree>/app/build`，否则 Gradle 判 up-to-date 不重打包。
 
 首次在新机/新环境构建需要自举（联网）：`sh /data/local/aitools/bootstrap-env.sh`
 （rootfs + `apk add openjdk17` + Android SDK + Gradle；SDK 里 `platforms/android-37.0` 需改成 `android-37` 并改 `source.properties`）。
@@ -46,7 +46,7 @@ sh /data/local/aitools/build-test.sh         # 全量；Robolectric 在 aarch64-
 
 ## 5. 改动铁律
 
-1. 只改 `源码/<tree>`，改完 `sync.sh`；工程树是镜像。
+1. 只改 `src/<tree>`，改完 `sync.sh`；工程树是镜像。
 2. 改 `assets/hosttools/**` 后必须重算 `assets/hosttools/VERSION`（对全量 1579 文件求 `(相对路径:大小)` 的 SHA-1），
    否则 `stamp` 指纹不匹配 → 安装后重铺 113 MB。
 3. assets 里以 `_` 开头的目录必须写成 `x__<原名>`（aapt 会丢弃 `_` 开头的目录），由 `copyDir` 在复制期还原。

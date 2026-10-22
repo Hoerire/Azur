@@ -14,7 +14,7 @@ description: 本机构建与出包唯一入口。涉及「构建/编译/打包/�
 **同日踩到的两个真坑，写进摘要时顺手核对：**
 
 1. 改完 `src/` 忘了 `sh project/sync.sh <树名>` 就构建 → 装上去的是**旧代码**（表现为改了 `FIXED_DIRS` 但机器上仍建中文目录）。
-2. 装包后 `HostToolsInstaller` 会用 **APK 里的 `assets/buildkit`** 覆盖 `/data/local/aitools/*.sh`。手工改过根脚本后不重新出包，下次装包就被回滚（表现为 `build-src.sh` 又变成中文路径、构建报 `SRC 必须在 .../工程/ 下`）。
+2. 装包后 `HostToolsInstaller` 会用 **APK 里的 `assets/buildkit`** 覆盖 `/data/local/aitools/*.sh`。手工改过根脚本后不重新出包，下次装包就被回滚（表现为 `build-src.sh` 又变成中文路径、构建报 `SRC 必须在 .../project/ 下`）。
 
 
 任何 `pm install` / 覆盖安装 **之前**，必须先输出本轮改动摘要，再装：
@@ -48,15 +48,15 @@ PYTHONPATH=/data/local/aitools/pylib $H/bin/netrun $H/bin/python3 script.py
 - **能装**：纯 Python 包（requests / urllib3 / idna / certifi / charset-normalizer / html2text …）
 - **装不了**：带 `.so` 的 wheel —— hosttools 是 musl 静态构建，glibc 扩展加载不了（numpy / lxml / pillow 这类要另起 glibc 环境）
 - 联网一律套 `netrun`，musl 不走 Android resolver
-- 依赖放 `/data/local/aitools/pylib`（不是 `临时/`，换构建不清）
+- 依赖放 `/data/local/aitools/pylib`（不是 `tmp/`，换构建不清）
 
 ## 0. 铁律
 - 可写只有 `/data/local/aitools/`；例外：`pm install` 用 `/data/local/tmp`（装完删）。
-- 改代码只改 `源码/<树>`；构建只跑 `工程/<同名树>`；同步只走 `工程/sync.sh <源码目录名>`。
-- 产物→`产物/`；日志→`日志/`；中间件→`临时/`（任务结束清空）。
-- 执行规则会硬拦：手搓 `chroot`、`su -c`、`环境/run.sh`、直接敲 `gradlew`、`grep -P`、`ls -R`、无 `-maxdepth` 的 `find`。
-- 命名铁律：`工程/<名>` 必须与 `源码/<名>` 同名；`build-src.sh` 解析后强校验，不同名 `exit 2` 并列出可用源码。
-- 例外：内核树可命名 `工程/kernel-<soc>-<ver>`（如 `kernel-sm8750-6.6`），它不走 `build-src.sh`，命名铁律只约束 app 构建。
+- 改代码只改 `src/<树>`；构建只跑 `project/<同名树>`；同步只走 `project/sync.sh <源码目录名>`。
+- 产物→`out/`；日志→`logs/`；中间件→`tmp/`（任务结束清空）。
+- 执行规则会硬拦：手搓 `chroot`、`su -c`、`env/run.sh`、直接敲 `gradlew`、`grep -P`、`ls -R`、无 `-maxdepth` 的 `find`。
+- 命名铁律：`project/<名>` 必须与 `src/<名>` 同名；`build-src.sh` 解析后强校验，不同名 `exit 2` 并列出可用源码。
+- 例外：内核树可命名 `project/kernel-<soc>-<ver>`（如 `kernel-sm8750-6.6`），它不走 `build-src.sh`，命名铁律只约束 app 构建。
 
 ## 0.1 工具优先级（先查再动手，禁止一个个试）
 容器内（`zafiro_env(action="shell")`）已装、直接用，**优先用这些**：
@@ -85,10 +85,10 @@ out/  logs/  tmp/
 ```
 
 ## 2. env
-- 有 `环境/env.sh` 就是装好了，不要重建。查版本 `zafiro_env(action="check")`。
+- 有 `env/env.sh` 就是装好了，不要重建。查版本 `zafiro_env(action="check")`。
 - 缺 → `sh /data/local/aitools/bootstrap-env.sh`（幂等装配器：缺 rootfs/gradle/platform×3/build-tools/cmdline-tools 时**自动走 netrun 下载并装配**，含 `apk add openjdk17`、aapt2 toolchain 与 debug.keystore 自愈，全程不用人工下载）。`build-src.sh` preflight 缺 gradle 时会自动调它；构建失败会自动跑 env-doctor 并把结果放日志尾部。
 - 体检/补装：`sh /data/local/aitools/aitools-fix.sh --check`，加 `--with-ndk --with-platforms --with-cmdline` 自动补。
-- 依赖缓存 `环境/gradle-home`（实测全量约 1.39G）：首次构建由 gradle 自己拉，无预热脚本、无 seed 文件。是否已缓存用 `du -sh env/gradle-home` 判断，不看文档。
+- 依赖缓存 `env/gradle-home`（实测全量约 1.39G）：首次构建由 gradle 自己拉，无预热脚本、无 seed 文件。是否已缓存用 `du -sh env/gradle-home` 判断，不看文档。
 
 ## 3. 出包
 ```sh
@@ -111,7 +111,7 @@ sh /data/local/aitools/build-src.sh --src=/data/local/aitools/project/<名> --ma
 `awk / stat -c / xargs -r / sort -k2 / unzip -l / readlink -f` 两端都行；`sed -i` 用 `#` 遇到含 `##` 的文本会 `bad pattern` → 换 `@`。
 
 ## 5. 改源码 & 校验
-**修复铁律（三步，缺一即失败）**：① 改 `源码/` ② `sh project/sync.sh <源码目录名>` 必须回 `SYNC OK` ③ 才允许构建。
+**修复铁律（三步，缺一即失败）**：① 改 `src/` ② `sh project/sync.sh <源码目录名>` 必须回 `SYNC OK` ③ 才允许构建。
 漏第②步 = 编译的是旧代码，白等一轮（已踩）。
 
 ```sh
@@ -126,7 +126,7 @@ sh /data/local/aitools/project/sync.sh <源码目录名>                       #
 zafiro_env(action="shell", cmd="gcc -O2 -o /data/local/aitools/tmp/a /data/local/aitools/tmp/a.c && /data/local/aitools/tmp/a")
 zafiro_env(action="apk", cmd="add --no-cache jq")
 ```
-- 容器只 rbind `源码/project/out/logs/tmp`：根下脚本在容器里是 rootfs 旧副本，必须在宿主 `shell` 改。
+- 容器只 rbind `src/project/out/logs/tmp`：根下脚本在容器里是 rootfs 旧副本，必须在宿主 `shell` 改。
 - 容器 `/tmp` 与宿主不同份，别当工作区。
 
 ## 7. 装包与验证
@@ -138,7 +138,7 @@ cp x.apk /data/local/tmp/x.apk && pm install -r /data/local/tmp/x.apk && rm -f /
 
 ## 8. 分析/反编译
 可用：`unzip -l/-p`、`file`、`readelf -hd`、`nm -D`、`objdump -d`、`strings -n 6`、`java -jar build-tools/<v>/lib/apksigner.jar verify --print-certs`、`d8`。
-不可用：`apktool`、`jadx`、`baksmali`（要用就下 release zip 到 `临时/`，用完删）。`unzip -p x.apk AndroidManifest.xml` 出来是二进制 AXML，解析用容器 python3，或直接读 `output-metadata.json`。
+不可用：`apktool`、`jadx`、`baksmali`（要用就下 release zip 到 `tmp/`，用完删）。`unzip -p x.apk AndroidManifest.xml` 出来是二进制 AXML，解析用容器 python3，或直接读 `output-metadata.json`。
 
 ## 9. 踩坑（实测）
 - `>>` 追加到无换行结尾的文件会粘连 → 先 `printf '\n' >> f`。

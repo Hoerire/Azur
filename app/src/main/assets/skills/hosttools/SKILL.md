@@ -41,7 +41,7 @@ description: 宿主侧内置命令行工具集（rg 搜索 / jq JSON / sqlite3 �
 
 ## 什么时候别用它（省得白试）
 - `file` / `curl` 要完整能力：`/system/bin` 在 PATH 里排第一，写全路径 `$HT/bin/file`
-- 编译 / gradle / 出 APK：用 `/data/local/aitools`（环境在 `环境/`，不是本技能）
+- 编译 / gradle / 出 APK：用 `/data/local/aitools`（环境在 `env/`，不是本技能）
 - `pip install` 联网：用 `netrun $HT/bin/pip install pkg`（裸 pip 无 DNS）
 
 ## 扩装一个命令（成本从低到高）
