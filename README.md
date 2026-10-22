@@ -4,16 +4,16 @@
 
 </div>
 
-# Anvil
+# Azur
 
 <p align="center">
-  <a href="https://github.com/Hoerire/anvil/releases/latest"><img src="https://img.shields.io/github/v/release/Hoerire/anvil?include_prereleases" alt="release"/></a>
-  <a href="https://github.com/Hoerire/anvil/releases/latest"><img src="https://img.shields.io/github/downloads/Hoerire/anvil/total" alt="downloads"/></a>
-  <a href="https://github.com/Hoerire/anvil/stargazers"><img src="https://img.shields.io/github/stars/Hoerire/anvil?label=stars" alt="stars"/></a>
+  <a href="https://github.com/Hoerire/azur/releases/latest"><img src="https://img.shields.io/github/v/release/Hoerire/azur?include_prereleases" alt="release"/></a>
+  <a href="https://github.com/Hoerire/azur/releases/latest"><img src="https://img.shields.io/github/downloads/Hoerire/azur/total" alt="downloads"/></a>
+  <a href="https://github.com/Hoerire/azur/stargazers"><img src="https://img.shields.io/github/stars/Hoerire/azur?label=stars" alt="stars"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license"/>
 </p>
 
-Anvil is an AI coding agent that runs on your phone and needs nothing else. It ships a real toolchain inside
+Azur is an AI coding agent that runs on your phone and needs nothing else. It ships a real toolchain inside
 the APK — CPython 3.12, a 305-applet busybox, `git`, `rg`, `jq`, `7zz`, `curl`, `sqlite3` and `aapt2` — unpacks
 it on first launch, and hands it to the model as executables. Ask it to fix a bug, and it edits the source,
 runs the tests, and rebuilds the APK on the same device it is running on.
@@ -24,13 +24,13 @@ Bring your own key. Any OpenAI-compatible endpoint works, from a frontier model 
 > Android 8.0+. No root needed for the agent itself — root unlocks `shell` as `su` and the on-device build
 > environment. Accessibility service is required for screen control.
 >
-> Grab a build from [Releases](https://github.com/Hoerire/anvil/releases/latest), or [build from source](#build).
+> Grab a build from [Releases](https://github.com/Hoerire/azur/releases/latest), or [build from source](#build).
 
 ## Core Capabilities
 
 ### A toolchain that travels with the app
 
-Most "AI on Android" apps call an API and render text. Anvil brings the other half.
+Most "AI on Android" apps call an API and render text. Azur brings the other half.
 
 - **1,579 binaries** compiled for aarch64 musl, unpacked into private storage on first launch
 - **CPython 3.12 with a working standard library** — `ssl`, `sqlite3`, `zipfile`, `xml`, `zoneinfo`, plus `requests`, `urllib3`, `html2text`
@@ -76,7 +76,7 @@ for quick capture, and a `libterm` terminal with local, libsu, Shizuku and SSH b
 
 ## Where it came from
 
-Anvil grew out of [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1. It kept that project's shell —
+Azur grew out of [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1. It kept that project's shell —
 the Compose UI, the settings framework, the OKIA runtime, the `libterm` terminal — and replaced everything
 underneath: the tool execution layer, the Python story, the environment bootstrap, the build pipeline.
 Upstream is credited in the About screen.
@@ -84,8 +84,8 @@ Upstream is credited in the About screen.
 ## Build
 
 ```bash
-git clone https://github.com/Hoerire/anvil
-cd anvil
+git clone https://github.com/Hoerire/azur
+cd azur
 ./gradlew :app:assembleDebug
 ```
 

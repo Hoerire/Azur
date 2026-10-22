@@ -4,16 +4,16 @@
 
 </div>
 
-# Anvil
+# Azur
 
 <p align="center">
-  <a href="https://github.com/Hoerire/anvil/releases/latest"><img src="https://img.shields.io/github/v/release/Hoerire/anvil?include_prereleases" alt="release"/></a>
-  <a href="https://github.com/Hoerire/anvil/releases/latest"><img src="https://img.shields.io/github/downloads/Hoerire/anvil/total" alt="downloads"/></a>
-  <a href="https://github.com/Hoerire/anvil/stargazers"><img src="https://img.shields.io/github/stars/Hoerire/anvil?label=stars" alt="stars"/></a>
+  <a href="https://github.com/Hoerire/azur/releases/latest"><img src="https://img.shields.io/github/v/release/Hoerire/azur?include_prereleases" alt="release"/></a>
+  <a href="https://github.com/Hoerire/azur/releases/latest"><img src="https://img.shields.io/github/downloads/Hoerire/azur/total" alt="downloads"/></a>
+  <a href="https://github.com/Hoerire/azur/stargazers"><img src="https://img.shields.io/github/stars/Hoerire/azur?label=stars" alt="stars"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license"/>
 </p>
 
-Anvil 是一个跑在手机上的 AI 编程 Agent，不需要任何别的设备。工具链就装在 APK 里 —— CPython 3.12、
+Azur 是一个跑在手机上的 AI 编程 Agent，不需要任何别的设备。工具链就装在 APK 里 —— CPython 3.12、
 305 个 applet 的 busybox、`git`、`rg`、`jq`、`7zz`、`curl`、`sqlite3`、`aapt2` —— 首启解包，直接交给模型
 当可执行文件用。你让它修个 bug，它改源码、跑测试、重新出 APK，全程在它自己运行的那台手机上完成。
 
@@ -23,13 +23,13 @@ Anvil 是一个跑在手机上的 AI 编程 Agent，不需要任何别的设备�
 > Android 8.0+。Agent 本体不需要 root —— root 才能让 `shell` 以 `su` 身份跑、才能用设备内构建环境。
 > 屏幕控制需要开无障碍服务。
 >
-> 去 [Releases](https://github.com/Hoerire/anvil/releases/latest) 下包，或者 [自己编](#构建)。
+> 去 [Releases](https://github.com/Hoerire/azur/releases/latest) 下包，或者 [自己编](#构建)。
 
 ## 核心能力
 
 ### 工具链跟着应用走
 
-大多数「Android 上的 AI」只是调个 API 然后渲染文字。Anvil 把另一半也带来了。
+大多数「Android 上的 AI」只是调个 API 然后渲染文字。Azur 把另一半也带来了。
 
 - **1,579 个二进制**，全是 aarch64 musl 编译，首启铺进私有目录
 - **CPython 3.12，标准库是完整的** —— `ssl`、`sqlite3`、`zipfile`、`xml`、`zoneinfo`，外加 `requests`、`urllib3`、`html2text`
@@ -73,15 +73,15 @@ Material 3 Expressive，Liquid Glass 与 Capsule 质感，浅色 / 深色 / 跟�
 
 ## 由来
 
-Anvil 从 [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1 长出来。留下的是它的外壳 —— Compose UI、
+Azur 从 [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1 长出来。留下的是它的外壳 —— Compose UI、
 设置框架、OKIA 运行时、`libterm` 终端；换掉的是外壳之下的一切：工具执行层、Python 方案、环境自举、构建
 流水线。上游署名保留在关于页。
 
 ## 构建
 
 ```bash
-git clone https://github.com/Hoerire/anvil
-cd anvil
+git clone https://github.com/Hoerire/azur
+cd azur
 ./gradlew :app:assembleDebug
 ```
 

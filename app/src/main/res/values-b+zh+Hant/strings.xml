@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App / Module -->
-    <string name="app_name">Anvil</string>
+    <string name="app_name">Azur</string>
     <string name="xposed_desc">讓語音助理接入你自己的模型能力\n\n現已支援：\n\n- ColorOS 小布助手\n- HyperOS 小愛同學</string>
 
     <!-- Onboarding -->
@@ -30,11 +30,11 @@
     <string name="ui_onboard_configure_error_load_failed">讀取設定失敗：%1$s</string>
     <string name="ui_onboard_configure_error_save_failed">儲存設定失敗：%1$s</string>
     <string name="ui_onboard_done_headline">設定完成。</string>
-    <string name="ui_onboard_done_description">設定已完成，你可以立即開始使用 Anvil，或稍後再到設定繼續調整。</string>
-    <string name="ui_onboard_done_enter_home">進入 Anvil</string>
+    <string name="ui_onboard_done_description">設定已完成，你可以立即開始使用 Azur，或稍後再到設定繼續調整。</string>
+    <string name="ui_onboard_done_enter_home">進入 Azur</string>
 
     <!-- Home -->
-    <string name="ui_home_title">Anvil</string>
+    <string name="ui_home_title">Azur</string>
     <string name="ui_home_menu_new_conversation">新對話</string>
     <string name="ui_home_input_placeholder">輸入訊息…</string>
     <string name="ui_home_conversation_compacted">對話已壓縮</string>
@@ -127,7 +127,7 @@
 
     <!-- Settings Home Items -->
     <string name="ui_settings_model_config">模型設定</string>
-    <string name="ui_settings_model_config_summary">調整 Anvil 的模型連接設定</string>
+    <string name="ui_settings_model_config_summary">調整 Azur 的模型連接設定</string>
     <string name="ui_settings_memory">記憶</string>
     <string name="ui_settings_memory_summary">管理持久化的記憶與偏好設定</string>
     <string name="ui_settings_tools">工具</string>
@@ -238,12 +238,12 @@
     <string name="execution_rules_enabled_mode_disabled">停用</string>
     <string name="execution_rules_enabled_mode_confirm">詢問我</string>
     <string name="tool_permission_dialog_title">AI 請求執行操作</string>
-    <string name="tool_permission_request_intro">Anvil 的工具「%1$s」請求執行以下命令：</string>
+    <string name="tool_permission_request_intro">Azur 的工具「%1$s」請求執行以下命令：</string>
     <string name="tool_permission_matched_rule">命中規則「%1$s」：%2$s</string>
     <string name="tool_permission_allow">允許本次</string>
     <string name="tool_permission_deny">拒絕</string>
     <string name="screen_control_consent_title">螢幕控制權限申請</string>
-    <string name="screen_control_consent_body">Anvil 需要以下權限才能控制螢幕：\n1. 無障礙服務：讀取介面、執行點按\n2. 顯示在其他應用程式上層：顯示指標指示器\n\n接下來可能會彈出系統授權框或跳轉到設定頁。</string>
+    <string name="screen_control_consent_body">Azur 需要以下權限才能控制螢幕：\n1. 無障礙服務：讀取介面、執行點按\n2. 顯示在其他應用程式上層：顯示指標指示器\n\n接下來可能會彈出系統授權框或跳轉到設定頁。</string>
     <string name="screen_control_consent_agree">同意</string>
     <string name="screen_control_consent_deny">拒絕</string>
     <string name="execution_rules_field_patterns">比對規則</string>
@@ -443,4 +443,5 @@
 
     <!-- Text Actions -->
     <string name="crash_startup_copied_toast">堆疊資訊已複製，請提交給開發者</string>
+    <string name="ui_settings_about_repository">專案主頁</string>
 </resources>

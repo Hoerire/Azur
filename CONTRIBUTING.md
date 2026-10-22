@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking at Anvil. This document covers the practical parts.
+Thanks for looking at Azur. This document covers the practical parts.
 
 ## Before you start
 

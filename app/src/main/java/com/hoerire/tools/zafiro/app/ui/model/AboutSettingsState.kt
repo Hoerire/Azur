@@ -7,6 +7,7 @@ import com.hoerire.tools.zafiro.app.R
 import com.hoerire.tools.zafiro.repo.XRepo
 
 enum class AboutSettingsItemId {
+    Repository,
     AuthorHomepage,
     Github,
     Afdian,
@@ -75,6 +76,11 @@ class AboutSettingsViewModel :
 private fun aboutSettingsItems(): List<AboutSettingsItemUiState> {
     return listOf(
         AboutSettingsItemUiState(
+            id = AboutSettingsItemId.Repository,
+            titleRes = R.string.ui_settings_about_repository,
+            uri = "https://github.com/Hoerire/azur",
+        ),
+        AboutSettingsItemUiState(
             id = AboutSettingsItemId.Github,
             titleRes = R.string.ui_settings_about_github,
             uri = "https://github.com/niki914/zafiro",
@@ -86,7 +92,7 @@ internal fun buildIssueUri(title: String, body: String): String {
     return Uri.Builder()
         .scheme("https")
         .authority("github.com")
-        .path("/Hoerire/anvil/issues/new")
+        .path("/Hoerire/azur/issues/new")
         .appendQueryParameter("title", title)
         .appendQueryParameter("body", body)
         .build()

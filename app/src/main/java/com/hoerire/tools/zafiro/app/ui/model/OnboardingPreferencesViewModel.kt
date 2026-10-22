@@ -31,7 +31,7 @@ data class OnboardingPreferencesUiState(
     val phoneUseGranted: Boolean
         get() = accessibilityGranted && overlayGranted
 
-    /** 四项全就绪：底部主按钮从「一键开启」切成「进入 Anvil」。 */
+    /** 四项全就绪：底部主按钮从「一键开启」切成「进入 Azur」。 */
     val allGranted: Boolean
         get() = phoneUseGranted && notificationGranted && storageGranted
 }

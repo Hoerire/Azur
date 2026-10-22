@@ -70,7 +70,7 @@ object ScreenCaptureIngestor {
             Logger.w(TAG, "ensureAccessibility failed: ${error.message}")
             return ToolCaptureResult.Err(
                 Stage.ACCESSIBILITY_UNAVAILABLE,
-                error.message ?: "Screen capture requires the Anvil accessibility service.",
+                error.message ?: "Screen capture requires the Azur accessibility service.",
             )
         }
 

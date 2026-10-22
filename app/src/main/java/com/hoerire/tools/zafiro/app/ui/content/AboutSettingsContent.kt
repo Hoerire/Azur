@@ -152,6 +152,7 @@ private fun aboutSettingsItemIdFromRowId(id: String): AboutSettingsItemId? {
 
 private fun AboutSettingsItemUiState.leadingIcon(): SettingsRowLeadingIcon {
     return when (id) {
+        AboutSettingsItemId.Repository,
         AboutSettingsItemId.AuthorHomepage,
         AboutSettingsItemId.Github -> SettingsRowLeadingIcon.PainterResource(R.drawable.github)
 

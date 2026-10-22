@@ -238,9 +238,9 @@ object AccessibilityController {
             }
             return Result.failure(
                 RuntimeException(
-                    "Anvil cannot fully control this device because required permissions were not granted. " +
+                    "Azur cannot fully control this device because required permissions were not granted. " +
                             "Failed: ${failures.joinToString("; ")}. " +
-                            "Tell the user to open Settings, enable 'Anvil' under Accessibility, " +
+                            "Tell the user to open Settings, enable 'Azur' under Accessibility, " +
                             "and allow 'Display over other apps'."
                 )
             )
@@ -265,8 +265,8 @@ object AccessibilityController {
         if (!ensureOne(Permission.ACCESSIBILITY, failures)) {
             return Result.failure(
                 RuntimeException(
-                    "The Anvil accessibility service is not available (${failures.joinToString("; ")}). " +
-                            "Tell the user to enable 'Anvil' in Settings > Accessibility, then retry."
+                    "The Azur accessibility service is not available (${failures.joinToString("; ")}). " +
+                            "Tell the user to enable 'Azur' in Settings > Accessibility, then retry."
                 )
             )
         }

@@ -28,7 +28,7 @@ dependencyResolutionManagement {
         google()   // 仅兜底
     }
 }
-rootProject.name = "Anvil"
+rootProject.name = "Azur"
 include(":app")
 include(":ui-kit")
 include(":remote-view")

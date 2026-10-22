@@ -71,7 +71,7 @@ private object UpdateCheckApi {
     private val json = Json { ignoreUnknownKeys = true }
 
     private const val OWNER = "Hoerire"
-    private const val REPO = "anvil"
+    private const val REPO = "azur"
     private const val GITHUB_API_LATEST = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
     private const val GITHUB_API_RECENT = "https://api.github.com/repos/$OWNER/$REPO/releases?per_page=1"
 

@@ -30,7 +30,7 @@ def _base(endpoint):
 
 
 def main(detailed: bool = False):
-    '''查询 DeepSeek 账户余额、今日本机 token 用量与折扣时段状态（小鲸鱼挂件的 Anvil 版）。'''
+    '''查询 DeepSeek 账户余额、今日本机 token 用量与折扣时段状态（小鲸鱼挂件的 Azur 版）。'''
     cfg_path = _pick('files/settings/llm/saved_configs.json')
     db_path = _pick('databases/conversation_history.db')
     lines = []

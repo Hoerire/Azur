@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App / Module -->
-    <string name="app_name">Anvil</string>
+    <string name="app_name">Azur</string>
     <string name="xposed_desc">Empower your voice assistant with your own models\n\nCurrently supported:\n\n- ColorOS Breeno\n- HyperOS XiaoAi</string>
 
     <!-- Onboarding -->
@@ -30,11 +30,11 @@
     <string name="ui_onboard_configure_error_load_failed">Failed to load configuration: %1$s</string>
     <string name="ui_onboard_configure_error_save_failed">Failed to save configuration: %1$s</string>
     <string name="ui_onboard_done_headline">All set.</string>
-    <string name="ui_onboard_done_description">Setup is complete. You can start using Anvil now or fine-tune it later in Settings.</string>
-    <string name="ui_onboard_done_enter_home">Open Anvil</string>
+    <string name="ui_onboard_done_description">Setup is complete. You can start using Azur now or fine-tune it later in Settings.</string>
+    <string name="ui_onboard_done_enter_home">Open Azur</string>
 
     <!-- Home -->
-    <string name="ui_home_title">Anvil</string>
+    <string name="ui_home_title">Azur</string>
     <string name="ui_home_menu_new_conversation">New conversation</string>
     <string name="ui_home_input_placeholder">Type a message...</string>
     <string name="ui_home_conversation_compacted">Conversation compacted</string>
@@ -128,7 +128,7 @@
 
     <!-- Settings Home Items -->
     <string name="ui_settings_model_config">Model Configuration</string>
-    <string name="ui_settings_model_config_summary">Adjust how Anvil connects to your model</string>
+    <string name="ui_settings_model_config_summary">Adjust how Azur connects to your model</string>
     <string name="ui_settings_memory">Memory</string>
     <string name="ui_settings_memory_summary">Manage saved memories and preferences</string>
     <string name="ui_settings_tools">Tools</string>
@@ -239,12 +239,12 @@
     <string name="execution_rules_enabled_mode_disabled">Disabled</string>
     <string name="execution_rules_enabled_mode_confirm">Ask me</string>
     <string name="tool_permission_dialog_title">AI requests to run an operation</string>
-    <string name="tool_permission_request_intro">Anvil tool "%1$s" wants to run the following command:</string>
+    <string name="tool_permission_request_intro">Azur tool "%1$s" wants to run the following command:</string>
     <string name="tool_permission_matched_rule">Matched rule "%1$s": %2$s</string>
     <string name="tool_permission_allow">Allow once</string>
     <string name="tool_permission_deny">Deny</string>
     <string name="screen_control_consent_title">Screen control permission request</string>
-    <string name="screen_control_consent_body">Anvil needs these permissions to control the screen:\n1. Accessibility service: read the UI and perform taps\n2. Display over other apps: show the pointer indicator\n\nA system prompt or a Settings page may appear next.</string>
+    <string name="screen_control_consent_body">Azur needs these permissions to control the screen:\n1. Accessibility service: read the UI and perform taps\n2. Display over other apps: show the pointer indicator\n\nA system prompt or a Settings page may appear next.</string>
     <string name="screen_control_consent_agree">Agree</string>
     <string name="screen_control_consent_deny">Deny</string>
     <string name="execution_rules_field_patterns">Patterns</string>
@@ -471,4 +471,5 @@
     <string name="update_dialog_current">You are on %1$s.</string>
     <string name="update_dialog_open">Download</string>
     <string name="update_dialog_later">Later</string>
+    <string name="ui_settings_about_repository">Project homepage</string>
 </resources>

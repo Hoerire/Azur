@@ -24,7 +24,7 @@ class ScreenshotBuiltin : BuiltinTool() {
     override val description: String = """
 Capture the entire device screen as an image so the model can see it.
 Use when the user asks about what is currently on screen, or to verify the visual result of an action.
-Requires Android 11+ and the Anvil accessibility service; on older Android versions use the shell
+Requires Android 11+ and the Azur accessibility service; on older Android versions use the shell
 tool with a privileged identity instead. Returns an error code when unavailable or the capture failed.
 Returns an image reference (path, dimensions, size) on success.
     """.trimIndent()
@@ -59,8 +59,8 @@ Returns an image reference (path, dimensions, size) on success.
                 Stage.ACCESSIBILITY_UNAVAILABLE -> BuiltinToolResult.failure(
                     code = "ACCESSIBILITY_UNAVAILABLE",
                     message = result.message
-                        ?: "Screen capture requires the Anvil accessibility service.",
-                    hint = "Tell the user to enable 'Anvil' in Settings > Accessibility, then retry."
+                        ?: "Screen capture requires the Azur accessibility service.",
+                    hint = "Tell the user to enable 'Azur' in Settings > Accessibility, then retry."
                 )
 
                 Stage.CAPTURE_FAILED,
