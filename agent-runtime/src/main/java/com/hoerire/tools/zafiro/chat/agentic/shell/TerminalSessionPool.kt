@@ -1154,10 +1154,10 @@ private class LibTermTerminalRuntimePort(
         cwd: String?,
         sshOptions: SshOpenOptions?,
     ): OpenResult<TerminalSessionPort> {
-        // User 与 Su 都走真 PTY：forkpty 之后 su 才有 tty 可用（早先 su -c sh 挂住是没 PTY 的锅）。
+        // User 与 Su 都走真 PTY：setsid -c 拿到 controlling tty 之后 su 才有 tty 可用。
         // Shizuku（需 binder）/ Ssh（需 ssh 栈）仍走 libterm 管道。
         if (sshOptions == null && (identity == TerminalIdentity.User || identity == TerminalIdentity.Su)) {
-            return TermuxPty.open(identity, cwd) { AppContext.await().applicationContext }
+            return PtyHost.open(identity, cwd) { AppContext.await().applicationContext }
         }
         return when (val result = runtime.open {
             this.identity = identity
