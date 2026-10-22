@@ -1,0 +1,145 @@
+---
+name: build
+description: 本机构建与出包唯一入口。涉及「构建/编译/打包/出 APK/debug/release/assemble/R8/资源裁剪/签名 keystore/versionCode/versionName/applicationId 包名/gradle/AGP/SDK/build-tools/aapt2/NDK/工具链/gcc/clang/cmake/ninja/rust/go/node/环境部署/联网重建/rootfs/容器 chroot/tmp 临时目录/产物 md5/安装 APK/pm install/覆盖安装/共存测试/APK 分析/反编译/反汇编/解包/dex/smali/AXML/AndroidManifest 解析/so/ELF/readelf/objdump/nm/strings/签名校验/apksigner/执行/运行/跑命令/跑脚本/BUILD FAILED/编译报错/找不到 SDK/内存不足重启/命令没报错但输出为空/Unknown option/unrecognized option/not executable 64-bit ELF/Permission denied/toybox/busybox」都先读本技能；改代码后的构建、校验、清理同样按本技能。
+---
+
+## 铁律：装包前先报改动（用户强制要求）
+
+任何 `pm install` / 覆盖安装 **之前**，必须先输出本轮改动摘要，再装：
+
+1. **改动文件表**：`文件 → 改了什么`（删了哪个类/字段/分支，压缩成一行）
+2. **产物信息**：versionCode、size、md5、APK 路径
+3. **一句话**："现在安装 vXX"
+4. 安装后只报：`Success` + versionCode 核对 + crash buffer 是否为 0
+
+禁止：先装再解释、只报 md5 不报改动、把摘要塞在安装命令后面。
+没给摘要就装 = 失败，用户会要求重来。
+
+
+# 构建（build）
+
+## Python 依赖：没有 pip，用 pyinstall.sh
+
+宿主 `hosttools/bin/python3` 是 3.12.13 **纯 stdlib**：`site-packages` 里只有坏掉的 pip 骨架，`zipfile._path` 也被裁掉（已在 hosttools 内补 stub）。缺依赖时从网上补，别折腾 pip。
+
+```sh
+# 装纯 Python 包到正式位置
+sh /data/local/aitools/pyinstall.sh requests urllib3 idna certifi charset-normalizer html2text
+
+# 用
+H=/data/user/0/com.hoerire.tools/files/hosttools
+PYTHONPATH=/data/local/aitools/pylib $H/bin/netrun $H/bin/python3 script.py
+```
+
+原理：`netrun curl` 拉 `https://pypi.org/pypi/<pkg>/json` → 挑 `py3-none-any.whl` → `7zz x` 解到 `/data/local/aitools/pylib`。
+
+- **能装**：纯 Python 包（requests / urllib3 / idna / certifi / charset-normalizer / html2text …）
+- **装不了**：带 `.so` 的 wheel —— hosttools 是 musl 静态构建，glibc 扩展加载不了（numpy / lxml / pillow 这类要另起 glibc 环境）
+- 联网一律套 `netrun`，musl 不走 Android resolver
+- 依赖放 `/data/local/aitools/pylib`（不是 `临时/`，换构建不清）
+
+## 0. 铁律
+- 可写只有 `/data/local/aitools/`；例外：`pm install` 用 `/data/local/tmp`（装完删）。
+- 改代码只改 `源码/<树>`；构建只跑 `工程/<同名树>`；同步只走 `工程/sync.sh <源码目录名>`。
+- 产物→`产物/`；日志→`日志/`；中间件→`临时/`（任务结束清空）。
+- 执行规则会硬拦：手搓 `chroot`、`su -c`、`环境/run.sh`、直接敲 `gradlew`、`grep -P`、`ls -R`、无 `-maxdepth` 的 `find`。
+- 命名铁律：`工程/<名>` 必须与 `源码/<名>` 同名；`build-src.sh` 解析后强校验，不同名 `exit 2` 并列出可用源码。
+- 例外：内核树可命名 `工程/kernel-<soc>-<ver>`（如 `kernel-sm8750-6.6`），它不走 `build-src.sh`，命名铁律只约束 app 构建。
+
+## 0.1 工具优先级（先查再动手，禁止一个个试）
+容器内（`zafiro_env(action="shell")`）已装、直接用，**优先用这些**：
+```
+编译  gcc g++ clang clang++ lld ld objcopy ar as nm strip readelf objdump addr2line
+构建  cmake ninja make pkg-config samu
+脚本  python3 node npm git rg jq sqlite3 tree xxd strace lsof file diff patch sed awk
+压缩  tar gzip zip unzip 7z aria2c lzop pzstd zstd xz bzip2
+网络  curl wget nc ss ip ping traceroute whois
+加密  openssl keytool jarsigner
+Java  java(17/21) javac jar javadoc javap jlink jimage
+安卓  aapt2 zipalign apksigner adb fastboot lpmake lpunpack unpack_bootimg mkdtboimg avbtool simg2img img2simg
+内核  pahole bc bison flex m4 dtc kmod rsync cpio
+语言  go(/usr/lib/go/bin/go，不在 PATH) gofmt rustc cargo ruby gem perl php lua5.4
+```
+- 事实基线：rootfs 有 725 个可执行、259 个 apk 包；找不到先 `command -v X` → `ls /usr/bin` → 才考虑 `zafiro_env(action="apk", cmd="add --no-cache X")`。
+- **宿主**（`shell` 工具）：无 gcc/clang/python3/node/git，只有 `/system/bin/curl`；宿主 `aapt/aapt2` 是 x86_64 → `not executable: 64-bit ELF`。
+- 已知缺口（别浪费试错）：`pip3`、`apktool`、`jadx`、`baksmali`、`meson`、`mkbootimg` 都没有（boot 镜像用 `lpmake/lpunpack/unpack_bootimg`）。
+
+## 1. 目录
+```
+环境/  rootfs run.sh env.sh android-sdk/ gradle-<ver>/ gradle-home/ toolchain/ debug.keystore
+工程/  <源码同名目录>（gradlew 只在这里跑）+ sync.sh
+源码/  权威源码，只改不编译（必须无 build/ .gradle/ .kotlin/）
+产物/  日志/  临时/
+```
+
+## 2. 环境
+- 有 `环境/env.sh` 就是装好了，不要重建。查版本 `zafiro_env(action="check")`。
+- 缺 → `sh /data/local/aitools/bootstrap-env.sh`（幂等装配器：缺 rootfs/gradle/platform×3/build-tools/cmdline-tools 时**自动走 netrun 下载并装配**，含 `apk add openjdk17`、aapt2 toolchain 与 debug.keystore 自愈，全程不用人工下载）。`build-src.sh` preflight 缺 gradle 时会自动调它；构建失败会自动跑 env-doctor 并把结果放日志尾部。
+- 体检/补装：`sh /data/local/aitools/aitools-fix.sh --check`，加 `--with-ndk --with-platforms --with-cmdline` 自动补。
+- 依赖缓存 `环境/gradle-home`（实测全量约 1.39G）：首次构建由 gradle 自己拉，无预热脚本、无 seed 文件。是否已缓存用 `du -sh 环境/gradle-home` 判断，不看文档。
+
+## 3. 出包
+```sh
+zafiro_env(action="build", args="-PdevSuffix --max-workers=1")            # 工程下只有一个工程时
+sh /data/local/aitools/build-src.sh --src=/data/local/aitools/工程/<名> --max-workers=1
+```
+- 成功三判据：日志 `BUILD SUCCESSFUL`、`RC=0`、`path: 产物/…apk`。
+- 脚本自动落盘并打印 `path/size/md5/appId=…`；自定义名 `ZAFIRO_APK_NAME=`，不落盘 `ZAFIRO_NO_COPY=1`。
+- 必须串行，`--max-workers=1` 必带。热构建 2s、冷 15-30s、全模块首编 4-5 分钟。
+- 强制重打：删 `app/build/outputs/apk/<variant>/app-release.apk` 再跑，比 `--rerun-tasks` 快。
+
+## 4. 命令兼容（实测）
+| 写法 | 宿主 toybox | 容器 busybox | 改用 |
+|---|---|---|---|
+| 交替用 `\|` | ✗ 静默 0 | ✓ | `-E 'a|b'` 或 `-e a -e b` |
+| `-P` 正则 | ✗ | ✗ | `-E` |
+| `sed -n` 交替 | ✗ 空输出 | ✓ | `sed -nE` |
+| `diff -x` / `--exclude` | ✗ | ✗ | md5 清单法 |
+| `find -printf` | ✓ | ✗ | `-exec` |
+`awk / stat -c / xargs -r / sort -k2 / unzip -l / readlink -f` 两端都行；`sed -i` 用 `#` 遇到含 `##` 的文本会 `bad pattern` → 换 `@`。
+
+## 5. 改源码 & 校验
+**修复铁律（三步，缺一即失败）**：① 改 `源码/` ② `sh 工程/sync.sh <源码目录名>` 必须回 `SYNC OK` ③ 才允许构建。
+漏第②步 = 编译的是旧代码，白等一轮（已踩）。
+
+```sh
+cp -p f f.bak && sed -i '453s@.*@新内容@' f && sed -n '450,456p' f    # 行号定位最稳，改完必须回读
+sh /data/local/aitools/工程/sync.sh <源码目录名>                       # 唯一同步入口，内含 md5 diff
+```
+- 批量改写优先容器内 `python3`（引号地狱少）。
+- 校验类改动最容易假失败：先看磁盘真实产物，再看脚本判定。
+
+## 6. 容器执行
+```sh
+zafiro_env(action="shell", cmd="gcc -O2 -o /data/local/aitools/临时/a /data/local/aitools/临时/a.c && /data/local/aitools/临时/a")
+zafiro_env(action="apk", cmd="add --no-cache jq")
+```
+- 容器只 rbind `源码/工程/产物/日志/临时`：根下脚本在容器里是 rootfs 旧副本，必须在宿主 `shell` 改。
+- 容器 `/tmp` 与宿主不同份，别当工作区。
+
+## 7. 装包与验证
+```sh
+cp x.apk /data/local/tmp/x.apk && pm install -r /data/local/tmp/x.apk && rm -f /data/local/tmp/x.apk
+```
+- 版本信息读 `output-metadata.json`；APK 内 zip 时间戳被规范化成 1981，判新旧看宿主 `ls -l` mtime。
+- 共存测试：在**工程副本**把 `applicationId` 改成 `<包名>.beta`，Fork 源码永远保持原包名。
+
+## 8. 分析/反编译
+可用：`unzip -l/-p`、`file`、`readelf -hd`、`nm -D`、`objdump -d`、`strings -n 6`、`java -jar build-tools/<v>/lib/apksigner.jar verify --print-certs`、`d8`。
+不可用：`apktool`、`jadx`、`baksmali`（要用就下 release zip 到 `临时/`，用完删）。`unzip -p x.apk AndroidManifest.xml` 出来是二进制 AXML，解析用容器 python3，或直接读 `output-metadata.json`。
+
+## 9. 踩坑（实测）
+- `>>` 追加到无换行结尾的文件会粘连 → 先 `printf '\n' >> f`。
+- 宿主别定义 shell 函数（`fc: history functions not available`）；`shell` 工具别传 `workdir`（`Session gone`），用绝对路径。
+- 目录改名后先 `grep -rn 旧名 /data/local/aitools/临时` 改掉脚本里写死的路径，否则镜像脚本认为「源为空」把目标清空（实测删过 1076 个文件）。破坏性脚本先 dry-run 打印将删数量。
+- 长任务 `nohup … > 日志/x.log 2>&1 &` 后按固定间隔 `tail -n 4`，禁止紧循环轮询。
+- 内存 <300M free 先 `zafiro_env(action="shell", cmd="gradle --stop")` 再编译。
+
+## 10. 报告
+结束必贴：`path / size / md5 / built` + 关键日志 20-30 行 + 未验证项标「需验证」。
+
+## hosttools 内置 Python：aapt `_` 目录坑（v26 已修）
+- aapt 打包会**丢弃 assets 下以 `_` 开头的目录**（文件保留）→ 曾缺 `zipfile/_path`、`pip/_internal`、`pip/_vendor`。
+- 解法：assets 侧目录改名 `x__<原名>`，`HostToolsInstaller.copyDir` 用 `removePrefix("x__")` 还原。
+- `pyexpat` 需 `assets/hosttools/lib/libexpat.so.1`（musl 2.8.1）。
+- pip 只能 `--version`，**不能 `pip install`**（musl PT_INTERP=/lib/ld-musl-aarch64.so.1 不存在）。装纯 py 包用 `sh /data/local/aitools/pyinstall.sh <pkg>`。

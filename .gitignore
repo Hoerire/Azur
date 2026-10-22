@@ -25,10 +25,15 @@
 !CHANGELOG.md
 !/.github/**/*.md
 !/.agents/skills/**/*.md
+!app/src/main/assets/**/*.md
+!app/src/main/assets/**/*.txt
 
 ### Android / Gradle
 **/.gradle/
-**/build/
+/build/
+/*/build/
+/*/*/build/
+/*/*/*/build/
 gradle/gradle-daemon-jvm.properties
 local.properties
 **/.externalNativeBuild/
