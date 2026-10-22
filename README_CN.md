@@ -55,6 +55,25 @@ Agent 运行时与 `libterm` 终端。上述层次之下的部分已被替换：
 **资源解包**。`aapt2` 会丢弃名称以 `_` 开头的资源目录，导致随包标准库中 `zipfile/_path`、`pip/_internal`
 等路径缺失。这些目录以 `x__<原名>` 形式存放，解包时还原。
 
+## 环境按需获取
+
+随包工具链是下限，不是上限。任务需要某个当前不存在的能力时，由 Agent 在设备上自行获取，不需要主机参与，
+也不需要用户预先准备。
+
+| 通道 | 机制 |
+|---|---|
+| 任意 HTTP | `netrun` 包装 `curl`，可访问的 URL 均可拉取 |
+| 源码检出 | 通过 `remote-https` 执行 `git clone` |
+| Alpine 软件包 | `zafiro_env apk` 在 chroot 内执行 `apk add`，用于 JDK、头文件、系统库 |
+| Python 发行版 | `pyinstall.sh` 从 PyPI 解析 wheel，解压至 `pylib` |
+| 扩展包 | `zafiro_env install` 将 `.tar.gz` 解压至工具根目录 |
+| 临时二进制 | 静态链接的 musl 构建，赋予可执行权限后直接运行 |
+
+两条限制是强制校验，而非文档里的注意事项。含编译扩展的发行版一律拒绝：解释器为 musl 链接，glibc wheel
+会绑定到不匹配的 ABI。任何依赖平台不存在的加载器路径的操作会立即失败，而不是静默降级。
+
+已获取的内容持久化在私有工具根目录中，一次会话取得的能力对后续会话仍然可用。
+
 ## 构建闭环
 
 工具链完整度足以产出应用自身的制品。针对源码树的请求全程在设备上完成：定位文件、修改内容、执行测试、
@@ -69,8 +88,8 @@ Agent 运行时与 `libterm` 终端。上述层次之下的部分已被替换：
      → 构建完成，已产出新 APK
 ```
 
-工具链按需配置：Alpine rootfs、JDK 17 与 Android SDK 平台 35 / 36 / 37.0 于首次使用时下载。仅无法在运行时
-获取的组件（`aapt2`、其 shim、签名与 no-lint init 脚本）作为 assets 随包分发。
+Alpine rootfs、JDK 17 与 Android SDK 平台 35 / 36 / 37.0 于首次使用时配置。仅无法在运行时获取的组件
+（`aapt2`、其 shim、签名与 no-lint init 脚本）作为 assets 随包分发。
 
 ## Agent 运行时
 

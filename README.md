@@ -60,6 +60,27 @@ compiled extensions are rejected rather than bound to a mismatched ABI.
 `zipfile/_path`, `pip/_internal` and similar paths from the packaged standard library. Those directories are
 stored as `x__<name>` and restored during extraction.
 
+## Environment provisioning
+
+The bundled toolchain is a floor, not a ceiling. When a task requires something absent, the agent acquires it
+on the device, without host involvement and without asking the user to prepare anything in advance.
+
+| Channel | Mechanism |
+|---|---|
+| Arbitrary HTTP | `netrun` wraps `curl`; any reachable URL can be fetched |
+| Source checkouts | `git clone` over `remote-https` |
+| Alpine packages | `zafiro_env apk` runs `apk add` inside the chroot — JDK, headers, system libraries |
+| Python distributions | `pyinstall.sh` resolves a wheel from PyPI and unpacks it into `pylib` |
+| Extension packs | `zafiro_env install` extracts a `.tar.gz` into the tool root |
+| Ad-hoc binaries | Statically linked musl builds execute directly once marked executable |
+
+Two limits are enforced rather than documented as caveats. Distributions carrying compiled extensions are
+rejected, because the interpreter is musl-linked and a glibc wheel would bind to a mismatched ABI. Anything
+requiring a loader path the platform does not expose fails immediately instead of degrading silently.
+
+Provisioned state persists in the private tool root, so a capability acquired in one session remains available
+to later ones.
+
 ## Build loop
 
 The toolchain is sufficient to produce the application's own artifact. A request against the source tree
@@ -75,9 +96,9 @@ request → shell        rg -n 'shields.io' README.md
         → build complete, new APK produced
 ```
 
-Toolchain provisioning is deferred: the Alpine rootfs, JDK 17 and Android SDK platforms 35 / 36 / 37.0 are
-downloaded on first use. Only components that cannot be fetched at runtime (`aapt2`, its shim, the signing and
-no-lint init scripts) are packaged as assets.
+The Alpine rootfs, JDK 17 and Android SDK platforms 35 / 36 / 37.0 are provisioned on first use. Only components
+that cannot be fetched at runtime (`aapt2`, its shim, the signing and no-lint init scripts) are packaged as
+assets.
 
 ## Agent runtime
 
