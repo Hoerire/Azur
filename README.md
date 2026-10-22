@@ -44,9 +44,9 @@ storage and registers them as executables available to the model.
 
 ## Execution model
 
-All bundled binaries are statically linked against musl and execute as ordinary Android processes. No chroot,
-no Termux installation, and no companion runtime are involved. Three platform constraints determine the rest of
-the design.
+All bundled binaries are statically linked against musl and execute as ordinary Android processes. No
+container, no companion process and no external runtime are involved. Three platform constraints determine the
+rest of the design.
 
 **Network egress.** Application sandboxes do not permit direct DNS or TLS access. `netrun` forwards both out of
 the sandbox, and `curl`, `git` and the package installer are wrapped to route through it.
@@ -125,6 +125,9 @@ Long sessions are handled by summarisation rather than truncation.
   in the conversation timeline, so the boundary between summarised and original history stays visible.
 - **Manual compaction.** Sending `/compact` forces the same path regardless of current occupancy.
 - **Repetition detection.** Seven sensitivity levels, from off to strictest, suppress degenerate output loops.
+- **Incremental output.** Model responses stream as they are produced, and a tool that is still running
+  reports its output as it arrives rather than waiting for the command to exit. Long builds and test runs are
+  observable while they happen.
 - **Persistence.** Conversations resume at the last turn after process termination.
 
 ## Tools
@@ -149,7 +152,7 @@ Markdown documents loaded on demand. A skill that is never requested contributes
 | `zafiro-cmd` | Canonical tool-layer command syntax, so the model does not hand-roll `su` and `chroot` |
 | `skill-creator` | Authoring, editing and testing skills |
 | `tool-config` | Reading and modifying application settings through sandbox JSON |
-| `termux` | Initial SSH configuration to Termux, and reconnection after failure |
+| `termux` | Reaching a separately installed Termux over SSH — first-time setup and reconnection |
 
 ## Interface
 
