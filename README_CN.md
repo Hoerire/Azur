@@ -1,4 +1,4 @@
-# Zafiro
+# Anvil
 
 [English](README.md) · **简体中文**
 
@@ -11,7 +11,7 @@
 [![checks](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml/badge.svg)](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml)
 
 
-Zafiro 是一个以对话驱动的 Agent 应用：它把一整套用户态工具链打包进 APK，能在设备上执行真实命令，
+Anvil 是一个以对话驱动的 Agent 应用：它把一整套用户态工具链打包进 APK，能在设备上执行真实命令，
 甚至能在设备内部给自己构建 APK。
 
 ---
@@ -22,7 +22,7 @@ Zafiro 是一个以对话驱动的 Agent 应用：它把一整套用户态工具
 7z、curl、sqlite3、`file`，外加 305 个 busybox applet。不用 Termux，不用另外装，不用手工配置。
 授予 root 后，Agent 拿到的是一个带完整工具的 shell。
 
-**它能重新构建自己。** Zafiro 可以在设备上拉起 Alpine chroot、装 JDK 与 Android SDK，
+**它能重新构建自己。** Anvil 可以在设备上拉起 Alpine chroot、装 JDK 与 Android SDK，
 然后自己 assemble 出 APK。构建环境本身就是一个 Agent 可以驱动的工具。
 
 **它有手。** 读屏与操作是一等工具：走无障碍服务拿结构化 UI 树，或走 shell input 做坐标点击与按键。

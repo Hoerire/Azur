@@ -98,7 +98,7 @@ class AgentRuntimeService : Service() {
         const val ACTION_STOP_RESIDENT = "com.hoerire.tools.zafiro.action.STOP_RESIDENT"
         private const val MAX_QUERY_LENGTH = 8192
         private const val STORE_CHANNEL_ID = "nexus_xservice_default_channel"
-        private const val STORE_CHANNEL_NAME = "Zafiro"
+        private const val STORE_CHANNEL_NAME = "Anvil"
 
         private var instance: AgentRuntimeService? = null
 

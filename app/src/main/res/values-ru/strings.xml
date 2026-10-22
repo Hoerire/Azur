@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Zafiro</string>
+    <string name="app_name">Anvil</string>
     <string name="xposed_desc">Подключите свою модель к голосовому помощнику\n\nСейчас поддерживаются:\n\n- ColorOS Breeno\n- HyperOS XiaoAi</string>
     <string name="ui_onboard_startup_demo_button">Начать</string>
     <string name="ui_onboard_provider_pick_title">Выберите провайдера</string>
@@ -27,9 +27,9 @@
     <string name="ui_onboard_configure_error_load_failed">Не удалось загрузить настройки: %1$s</string>
     <string name="ui_onboard_configure_error_save_failed">Не удалось сохранить настройки: %1$s</string>
     <string name="ui_onboard_done_headline">Всё готово.</string>
-    <string name="ui_onboard_done_description">Настройка завершена. Можно начинать работать с Zafiro или донастроить его позже в настройках.</string>
-    <string name="ui_onboard_done_enter_home">Открыть Zafiro</string>
-    <string name="ui_home_title">Zafiro</string>
+    <string name="ui_onboard_done_description">Настройка завершена. Можно начинать работать с Anvil или донастроить его позже в настройках.</string>
+    <string name="ui_onboard_done_enter_home">Открыть Anvil</string>
+    <string name="ui_home_title">Anvil</string>
     <string name="ui_home_menu_new_conversation">Новый диалог</string>
     <string name="ui_home_input_placeholder">Введите сообщение…</string>
     <string name="ui_home_conversation_compacted">Диалог сжат</string>
@@ -119,7 +119,7 @@
     <string name="ui_settings_section_rules">Правила</string>
     <string name="ui_settings_section_app">Приложение</string>
     <string name="ui_settings_model_config">Настройки модели</string>
-    <string name="ui_settings_model_config_summary">Как Zafiro подключается к вашей модели</string>
+    <string name="ui_settings_model_config_summary">Как Anvil подключается к вашей модели</string>
     <string name="ui_settings_memory">Память</string>
     <string name="ui_settings_memory_summary">Сохранённые факты и предпочтения</string>
     <string name="ui_settings_tools">Инструменты</string>
@@ -221,12 +221,12 @@
     <string name="execution_rules_enabled_mode_disabled">Выключено</string>
     <string name="execution_rules_enabled_mode_confirm">Спрашивать меня</string>
     <string name="tool_permission_dialog_title">ИИ запрашивает выполнение операции</string>
-    <string name="tool_permission_request_intro">Инструмент Zafiro «%1$s» хочет выполнить команду:</string>
+    <string name="tool_permission_request_intro">Инструмент Anvil «%1$s» хочет выполнить команду:</string>
     <string name="tool_permission_matched_rule">Сработало правило «%1$s»: %2$s</string>
     <string name="tool_permission_allow">Разрешить один раз</string>
     <string name="tool_permission_deny">Запретить</string>
     <string name="screen_control_consent_title">Запрос разрешения на управление экраном</string>
-    <string name="screen_control_consent_body">Для управления экраном Zafiro нужны разрешения:\n1. Служба специальных возможностей: чтение интерфейса и нажатия\n2. Показ поверх других приложений: указатель на экране\n\nСледующим шагом появится системный запрос или страница настроек.</string>
+    <string name="screen_control_consent_body">Для управления экраном Anvil нужны разрешения:\n1. Служба специальных возможностей: чтение интерфейса и нажатия\n2. Показ поверх других приложений: указатель на экране\n\nСледующим шагом появится системный запрос или страница настроек.</string>
     <string name="screen_control_consent_agree">Согласен</string>
     <string name="screen_control_consent_deny">Запретить</string>
     <string name="execution_rules_field_patterns">Шаблоны</string>

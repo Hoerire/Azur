@@ -54,7 +54,7 @@ Base 是当前主线 `源码/zafiro-15-1.8.1-Fork`，除非用户指定别的基
 cp -a $A/源码/zafiro-15-1.8.1-Fork "$S"
 mkdir -p "$P" && rsync -a --exclude build --exclude .gradle --exclude .kotlin "$S/" "$P/"
 # 构建这条线（必须显式 --src=，且 VARIANT=debug）
-cd $A && ZAFIRO_VARIANT=debug ZAFIRO_APK_NAME="Zafiro-$TASK.apk" \
+cd $A && ZAFIRO_VARIANT=debug ZAFIRO_APK_NAME="Forge-$TASK.apk" \
   sh env.sh build --src="$P" --max-workers=1
 ```
 

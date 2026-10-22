@@ -28,7 +28,7 @@ dependencyResolutionManagement {
         google()   // 仅兜底
     }
 }
-rootProject.name = "Zafiro"
+rootProject.name = "Anvil"
 include(":app")
 include(":ui-kit")
 include(":remote-view")

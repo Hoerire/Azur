@@ -16,7 +16,7 @@ internal fun DonePageRoute(
     onResetTo: (ZafiroPage) -> Unit,
 ) {
     // 到达本页即视为 onboarding 完成：provider 已在上一页保存并置为 active，
-    // 冷启动不该因为用户没点到"进入 Zafiro"而重新走一遍 onboarding。
+    // 冷启动不该因为用户没点到"进入 Anvil"而重新走一遍 onboarding。
     LaunchedEffect(Unit) {
         completeOnboarding()
     }

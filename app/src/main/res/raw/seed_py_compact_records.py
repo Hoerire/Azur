@@ -43,7 +43,7 @@ def _rows():
     return rows
 
 def main(detailed: bool = False, limit: int = 10):
-    """查看 Zafiro 上下文的压缩记录与摘要（读本机对话库中的 <zfr-summary> 消息）。"""
+    """查看 Anvil 上下文的压缩记录与摘要（读本机对话库中的 <zfr-summary> 消息）。"""
     rows = _rows()
     try:
         with open(STATE) as f:

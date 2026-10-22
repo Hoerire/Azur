@@ -10,7 +10,7 @@
 
 退出码：0 成功；1 下载失败。
 
-也可注册为 Zafiro python tool：main(url, filename="", path="")。
+也可注册为 Anvil python tool：main(url, filename="", path="")。
 """
 import argparse
 import json

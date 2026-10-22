@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App / Module -->
-    <string name="app_name">Zafiro</string>
+    <string name="app_name">Anvil</string>
     <string name="xposed_desc">音声アシスタントに独自のモデル機能を連携\n\n対応中:\n\n- ColorOS Breeno\n- HyperOS XiaoAi</string>
 
     <!-- Onboarding -->
@@ -30,11 +30,11 @@
     <string name="ui_onboard_configure_error_load_failed">設定の読み込みに失敗しました：%1$s</string>
     <string name="ui_onboard_configure_error_save_failed">設定の保存に失敗しました：%1$s</string>
     <string name="ui_onboard_done_headline">準備が完了しました</string>
-    <string name="ui_onboard_done_description">設定が完了しました。すぐに Zafiro を使用するか、後から設定で調整できます。</string>
-    <string name="ui_onboard_done_enter_home">Zafiro を開く</string>
+    <string name="ui_onboard_done_description">設定が完了しました。すぐに Anvil を使用するか、後から設定で調整できます。</string>
+    <string name="ui_onboard_done_enter_home">Anvil を開く</string>
 
     <!-- Home -->
-    <string name="ui_home_title">Zafiro</string>
+    <string name="ui_home_title">Anvil</string>
     <string name="ui_home_menu_new_conversation">新しい会話</string>
     <string name="ui_home_input_placeholder">メッセージを入力...</string>
     <string name="ui_home_conversation_compacted">会話が圧縮されました</string>
@@ -127,7 +127,7 @@
 
     <!-- Settings Home Items -->
     <string name="ui_settings_model_config">モデル設定</string>
-    <string name="ui_settings_model_config_summary">Zafiro のモデル連携を調整</string>
+    <string name="ui_settings_model_config_summary">Anvil のモデル連携を調整</string>
     <string name="ui_settings_memory">メモリ</string>
     <string name="ui_settings_memory_summary">永続化された記憶と設定を管理</string>
     <string name="ui_settings_tools">ツール</string>
@@ -238,12 +238,12 @@
     <string name="execution_rules_enabled_mode_disabled">無効</string>
     <string name="execution_rules_enabled_mode_confirm">確認を求める</string>
     <string name="tool_permission_dialog_title">AI が操作の実行を要求しています</string>
-    <string name="tool_permission_request_intro">Zafiro のツール「%1$s」が次のコマンドの実行を要求しています：</string>
+    <string name="tool_permission_request_intro">Anvil のツール「%1$s」が次のコマンドの実行を要求しています：</string>
     <string name="tool_permission_matched_rule">一致したルール「%1$s」：%2$s</string>
     <string name="tool_permission_allow">今回のみ許可</string>
     <string name="tool_permission_deny">拒否</string>
     <string name="screen_control_consent_title">画面操作権限のリクエスト</string>
-    <string name="screen_control_consent_body">Zafiro が画面を操作するには次の権限が必要です：\n1. ユーザー補助サービス：UI の読み取りとタップの実行\n2. 他のアプリの上に重ねて表示：ポインターインジケーターの表示\n\nこの後、システムの許可ダイアログや設定画面が表示される場合があります。</string>
+    <string name="screen_control_consent_body">Anvil が画面を操作するには次の権限が必要です：\n1. ユーザー補助サービス：UI の読み取りとタップの実行\n2. 他のアプリの上に重ねて表示：ポインターインジケーターの表示\n\nこの後、システムの許可ダイアログや設定画面が表示される場合があります。</string>
     <string name="screen_control_consent_agree">同意</string>
     <string name="screen_control_consent_deny">拒否</string>
     <string name="execution_rules_field_patterns">ルール</string>

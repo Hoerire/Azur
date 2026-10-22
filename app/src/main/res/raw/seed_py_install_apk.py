@@ -11,7 +11,7 @@
 
 退出码：0 已安装；1 安装失败；2 su 不可用/未授权；3 已安装，跳过。
 
-也可注册为 Zafiro python tool：main(url, force=False)。
+也可注册为 Anvil python tool：main(url, force=False)。
 """
 import argparse
 import os

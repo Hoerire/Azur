@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App / Module -->
-    <string name="app_name">Zafiro</string>
+    <string name="app_name">Anvil</string>
 
     <!-- Onboarding -->
     <string name="ui_onboard_startup_demo_button">开始使用</string>
@@ -29,11 +29,11 @@
     <string name="ui_onboard_configure_error_load_failed">读取配置失败：%1$s</string>
     <string name="ui_onboard_configure_error_save_failed">保存配置失败：%1$s</string>
     <string name="ui_onboard_done_headline">大功告成。</string>
-    <string name="ui_onboard_done_description">配置已完成，你可以开始使用 Zafiro，或稍后在设置中继续调整。</string>
-    <string name="ui_onboard_done_enter_home">进入 Zafiro</string>
+    <string name="ui_onboard_done_description">配置已完成，你可以开始使用 Anvil，或稍后在设置中继续调整。</string>
+    <string name="ui_onboard_done_enter_home">进入 Anvil</string>
 
     <!-- Home -->
-    <string name="ui_home_title">Zafiro</string>
+    <string name="ui_home_title">Anvil</string>
     <string name="ui_home_menu_new_conversation">新对话</string>
     <string name="ui_home_input_placeholder">输入消息...</string>
     <string name="ui_home_conversation_compacted">对话已压缩</string>
@@ -126,7 +126,7 @@
 
     <!-- Settings Home Items -->
     <string name="ui_settings_model_config">模型配置</string>
-    <string name="ui_settings_model_config_summary">调整 Zafiro 的模型接入</string>
+    <string name="ui_settings_model_config_summary">调整 Anvil 的模型接入</string>
     <string name="ui_settings_memory">记忆</string>
     <string name="ui_settings_memory_summary">管理持久化的记忆与偏好</string>
     <string name="ui_settings_tools">工具</string>
@@ -237,12 +237,12 @@
     <string name="execution_rules_enabled_mode_disabled">不生效</string>
     <string name="execution_rules_enabled_mode_confirm">询问我</string>
     <string name="tool_permission_dialog_title">AI 请求执行操作</string>
-    <string name="tool_permission_request_intro">Zafiro 的工具「%1$s」请求执行以下命令：</string>
+    <string name="tool_permission_request_intro">Anvil 的工具「%1$s」请求执行以下命令：</string>
     <string name="tool_permission_matched_rule">命中规则「%1$s」：%2$s</string>
     <string name="tool_permission_allow">允许本次</string>
     <string name="tool_permission_deny">拒绝</string>
     <string name="screen_control_consent_title">屏幕控制权限申请</string>
-    <string name="screen_control_consent_body">Zafiro 需要以下权限才能控制屏幕：\n1. 无障碍服务：读取界面、执行点按\n2. 显示在其他应用上层：显示指针指示器\n\n接下来可能会弹出系统授权框或跳转到设置页。</string>
+    <string name="screen_control_consent_body">Anvil 需要以下权限才能控制屏幕：\n1. 无障碍服务：读取界面、执行点按\n2. 显示在其他应用上层：显示指针指示器\n\n接下来可能会弹出系统授权框或跳转到设置页。</string>
     <string name="screen_control_consent_agree">同意</string>
     <string name="screen_control_consent_deny">拒绝</string>
     <string name="execution_rules_field_tool_filter">生效工具</string>

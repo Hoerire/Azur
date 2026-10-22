@@ -1,6 +1,6 @@
 ---
 name: release-new-version
-description: Use when the user wants to release a new Zafiro version — drafting bilingual release notes, deciding the next version number, bumping app/build.gradle.kts, tagging, and publishing to GitHub (main repo, optionally the Xposed repo).
+description: Use when the user wants to release a new Forge version — drafting bilingual release notes, deciding the next version number, bumping app/build.gradle.kts, tagging, and publishing to GitHub (main repo, optionally the Xposed repo).
 ---
 
 > **本仓库发版路径（本节优先于正文）**
@@ -13,7 +13,7 @@ description: Use when the user wants to release a new Zafiro version — draftin
 
 # Release New Version
 
-Release workflow for Zafiro.
+Release workflow for Forge.
 
 Repos involved:
 

@@ -21,7 +21,7 @@ disclosure.
 
 ## Threat model — read this before reporting
 
-Zafiro is an agent that runs commands on your device, and it is designed to do so:
+Anvil is an agent that runs commands on your device, and it is designed to do so:
 
 | Behaviour | Expected? |
 |---|---|

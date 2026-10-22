@@ -21,10 +21,10 @@ android {
         applicationId = "com.hoerire.tools"
         minSdk = 26
         targetSdk = 34
-        versionCode = 33
-        versionName = "1.8.1-fork"
+        versionCode = 1
+        versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        manifestPlaceholders["appLabel"] = "Zafiro"
+        manifestPlaceholders["appLabel"] = "Anvil"
         ndk {
             abiFilters += "arm64-v8a"
         }

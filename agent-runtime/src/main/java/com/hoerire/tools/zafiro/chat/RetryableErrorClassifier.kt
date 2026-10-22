@@ -4,7 +4,7 @@ import com.hoerire.tools.okia.error.LLMError
 import com.hoerire.tools.okia.error.LLMErrorCode
 
 /**
- * 错误分类器：okia 的 LLMError → 更细的 Zafiro LlmErrorCode。
+ * 错误分类器：okia 的 LLMError → 更细的 Anvil LlmErrorCode。
  *
  * okia 的 Transport 是个杂项桶（socket hang up / ECONNRESET / 5xx 全在里面），
  * UI 标题只能笼统归"网络异常"。这里按错误原文正则细分（对齐 pi

@@ -1,4 +1,4 @@
-# Zafiro
+# Anvil
 
 **English** · [简体中文](README_CN.md)
 
@@ -11,7 +11,7 @@ An Android AI agent that runs on your phone — and can operate it.
 [![checks](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml/badge.svg)](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml)
 
 
-Zafiro is a chat-driven agent app that ships its own userspace toolchain, executes real
+Anvil is a chat-driven agent app that ships its own userspace toolchain, executes real
 commands on the device, and can even build Android APKs from inside itself.
 
 ---
@@ -23,7 +23,7 @@ into private storage on first launch: CPython 3.12.13, ripgrep, jq, 7z, curl, sq
 plus 305 busybox applets. No Termux, no separate install, no manual setup. Grant root and the
 agent has a real shell with real tooling.
 
-**It can rebuild itself.** Zafiro can bootstrap an Alpine chroot, install a JDK and the Android
+**It can rebuild itself.** Anvil can bootstrap an Alpine chroot, install a JDK and the Android
 SDK, and assemble its own APK on the device. The build environment is a tool the agent can drive.
 
 **It has hands.** Screen reading and interaction are first-class tools — via the accessibility
