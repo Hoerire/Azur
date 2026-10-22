@@ -2,47 +2,79 @@
 
 **English** · [简体中文](README_CN.md)
 
-An Android AI agent that runs on your phone — and can operate it.
-
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-brightgreen.svg)](#requirements)
 [![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)](#requirements)
 [![Kotlin](https://img.shields.io/badge/kotlin-2.2.0-7F52FF.svg)](https://kotlinlang.org)
-[![checks](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml/badge.svg)](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml)
+[![checks](https://github.com/Hoerire/anvil/actions/workflows/checks.yml/badge.svg)](https://github.com/Hoerire/anvil/actions/workflows/checks.yml)
 
-
-Anvil is a chat-driven agent app that ships its own userspace toolchain, executes real
-commands on the device, and can even build Android APKs from inside itself.
-
----
-
-## What makes it different
-
-**The toolchain travels with the app.** A 113 MB toolchain is packed into the APK and unpacked
-into private storage on first launch: CPython 3.12.13, ripgrep, jq, 7z, curl, sqlite3, `file`,
-plus 305 busybox applets. No Termux, no separate install, no manual setup. Grant root and the
-agent has a real shell with real tooling.
-
-**It can rebuild itself.** Anvil can bootstrap an Alpine chroot, install a JDK and the Android
-SDK, and assemble its own APK on the device. The build environment is a tool the agent can drive.
-
-**It has hands.** Screen reading and interaction are first-class tools — via the accessibility
-service for structured UI trees, or via shell input for coordinates and key events.
+An AI coding environment that lives on your phone: it ships a complete userspace toolchain and a
+build stack, so the agent can edit code, run it, and assemble an APK without a desktop.
 
 ---
 
-## Core capabilities
+## Origin
+
+Anvil started from [niki914/zafiro](https://github.com/niki914/zafiro), released under the MIT
+license. The original project supplied the application skeleton: the Compose UI shell, the
+settings plumbing, the OKIA agent runtime and the libterm terminal backends.
+
+Everything below the UI was rebuilt. The execution model, the tool system, the Python story and the
+build story are not the same as the project it started from.
+
+The original copyright notice is kept verbatim in [LICENSE](LICENSE).
+
+## What changed
+
+**Execution layer, rebuilt**
+
+| Area | Before | Now |
+|---|---|---|
+| Python | Interpretation ran inside the app through an embedded runtime | A real CPython 3.12.13 (musl) ships in the APK and runs from private storage |
+| Tool protocol | MCP client and server bundled | Removed entirely — no MCP code or dependency remains |
+| Assistant takeover | Xposed modules hooked external voice assistants | Removed; the tree contains no Xposed modules |
+| Update checking | In-app update prompt | Removed |
+| Tool surface | Python-defined custom tools registered at runtime | Twelve first-class built-in tools behind a typed registry, with per-tool switches |
+
+**Toolchain, shipped instead of assumed**
+
+- ~113 MB of tooling is packed into the APK: CPython, ripgrep, jq, 7z, curl, sqlite3, `file`,
+  fd, fzf, strace-log-merge, and 305 busybox applets, unpacked into private storage on first launch.
+- Unpacking is content-addressed: a fingerprint of the shipped tree is compared with the value
+  recorded on the previous launch, so upgrades only re-extract when the content actually changed.
+- Directories whose names begin with an underscore are shipped under an `x__` prefix, because the
+  packaging step silently drops them, and restored on extraction.
+
+**Build environment, on the device**
+
+- The app can bootstrap an Alpine chroot with a JDK, the Android SDK and Gradle, then drive
+  `gradlew` inside a container to produce an APK — the build environment is a tool the agent calls.
+- Build assets travel with the app: a bionic `aapt2` with its musl `libz`, and the Gradle init
+  scripts that wire signing, so a rebuilt environment does not need them fetched again.
+
+**Operational details**
+
+- Portable signing: `ZAFIRO_KEYSTORE` or `-PRELEASE_STORE_FILE`, then an in-repo keystore, then the
+  standard debug keystore.
+- Separate build roots for the main package and for side-by-side test builds, so experiments never
+  touch the primary environment.
+- Unified `zafiro_` log prefix across 63 source files for filterable logs.
+
+---
+
+## Features
 
 ### Agent runtime
-Tool-calling loop with streaming output, retry, cancellation and room-backed conversation
-persistence. Prompts are composed in stable/volatile layers so the environment block can change
-without invalidating the cache.
+
+Tool-calling loop with streaming output, retry with classification, cancellation, and conversation
+persistence in Room. Prompts are composed in stable and volatile layers, so the environment block can
+change between turns without invalidating the rest.
 
 ### Built-in tools
 
 | Tool | What it does |
 |---|---|
-| `shell` | Run commands through the on-device toolchain (root-capable) |
+| `shell` | Run commands through the bundled toolchain (root-capable) |
 | `open_uri` | Open a URL, geo, tel or mailto URI |
 | `launch_app` | Start an installed app by name or package |
 | `find_installed_apps` | Resolve installed packages |
@@ -52,28 +84,30 @@ without invalidating the cache.
 | `screenshot` | Capture the current screen |
 | `view_image` | Read an image file from disk |
 | `zafiro_env` | Inspect toolchains and build environments; start on-device builds |
-| `screen_operation_accessibility` | Read and drive the UI tree via accessibility |
-| `screen_operation_shell` | Tap / swipe / keyevent by coordinates |
+| `screen_operation_accessibility` | Read and drive the UI tree through the accessibility service |
+| `screen_operation_shell` | Tap, swipe and send key events by coordinate |
 
 ### Skills
+
 Markdown skill documents ship inside the APK and load on demand, keeping the system prompt small
 while making deep, task-specific knowledge available when the agent asks for it.
 
 ### Interface
+
 Jetpack Compose with Material 3 Expressive, Liquid Glass surfaces and Capsule rounded corners.
-Chat, history, usage, and a fully reorganised tool settings surface with per-tool switches.
+Chat, history, usage, and a tool settings surface with per-tool switches and group toggles.
 
 ---
 
 ## Requirements
 
 - Android 8.0+ (`minSdk 26`), Android 14–16 recommended
-- Root (KernelSU or Magisk) for the full toolchain · without it the app runs, but private-storage
-  binaries cannot be executed by the app process itself
-- Accessibility service permission for screen operation tools
+- Root (KernelSU or Magisk) for the full toolchain — without it the app runs, but the app process
+  cannot execute binaries from private storage
+- Accessibility service permission for the screen-operation tools
 - `INTERNET` for model APIs
 
-The app writes only to its own private storage — no storage permission needed.
+The app writes only to its own private storage; no storage permission is needed.
 
 ---
 
@@ -83,11 +117,17 @@ The app writes only to its own private storage — no storage permission needed.
 ./gradlew :app:assembleDebug
 ```
 
-Requires JDK 17 and Android SDK platform 37 / build-tools 36. The APK lands in
+Requires JDK 17 and Android SDK platform 37 / build-tools 36. Output lands in
 `app/build/outputs/apk/debug/`.
 
-Release signing: create `keystore/release.keystore` or set `ZAFIRO_KEYSTORE` to an absolute path.
-Without either, the build falls back to the standard debug keystore.
+Signing picks the first available of: `ZAFIRO_KEYSTORE` (absolute path), the
+`-PRELEASE_STORE_FILE` Gradle property, `keystore/debug.keystore`, `keystore/release.keystore`, or
+the default debug keystore Gradle generates.
+
+Repository checks run in CI: documents present, no committed keystores or build output, no personal
+paths in sources, tab-free Kotlin, and the bundled toolchain fingerprint matching its manifest.
+Regenerate the fingerprint after touching the toolchain with
+`python3 .github/scripts/gen_hosttools_version.py`.
 
 ---
 
@@ -105,8 +145,6 @@ remote-view/      remote view primitives
 common-utils/     shared utilities
 ```
 
----
-
 ## Tech stack
 
 | Layer | Choice |
@@ -117,18 +155,10 @@ common-utils/     shared utilities
 | Storage | Room 2.7.2 |
 | Terminal | libterm (core / runtime / libsu / shizuku / ssh backends) |
 | Images | coil-resvg |
-| On-device Python | CPython 3.12.13 (musl), bundled, stdlib + packaged wheels |
+| On-device Python | CPython 3.12.13 (musl), bundled, stdlib plus packaged wheels |
 
 ---
-
----
-
-## Attribution
-
-This project is derived from [niki914/zafiro](https://github.com/niki914/zafiro), released under
-the MIT license. The original copyright notice is retained in `LICENSE`. Substantial portions of
-the application have since been rewritten; see `CHANGELOG.md` for the current feature set.
 
 ## License
 
-See `LICENSE`.
+MIT. See [LICENSE](LICENSE), which carries both the original and the current copyright notice.

@@ -2,38 +2,67 @@
 
 [English](README.md) · **简体中文**
 
-跑在手机上的 Android AI Agent —— 而且能真的操作手机。
-
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-brightgreen.svg)](#requirements)
-[![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)](#requirements)
+[![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-brightgreen.svg)](#环境要求)
+[![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)](#环境要求)
 [![Kotlin](https://img.shields.io/badge/kotlin-2.2.0-7F52FF.svg)](https://kotlinlang.org)
-[![checks](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml/badge.svg)](https://github.com/Hoerire/zafiro/actions/workflows/checks.yml)
+[![checks](https://github.com/Hoerire/anvil/actions/workflows/checks.yml/badge.svg)](https://github.com/Hoerire/anvil/actions/workflows/checks.yml)
 
-
-Anvil 是一个以对话驱动的 Agent 应用：它把一整套用户态工具链打包进 APK，能在设备上执行真实命令，
-甚至能在设备内部给自己构建 APK。
-
----
-
-## 它凭什么不一样
-
-**工具链跟着应用走。** 113 MB 工具链打进 APK，首启解包到私有存储：CPython 3.12.13、ripgrep、jq、
-7z、curl、sqlite3、`file`，外加 305 个 busybox applet。不用 Termux，不用另外装，不用手工配置。
-授予 root 后，Agent 拿到的是一个带完整工具的 shell。
-
-**它能重新构建自己。** Anvil 可以在设备上拉起 Alpine chroot、装 JDK 与 Android SDK，
-然后自己 assemble 出 APK。构建环境本身就是一个 Agent 可以驱动的工具。
-
-**它有手。** 读屏与操作是一等工具：走无障碍服务拿结构化 UI 树，或走 shell input 做坐标点击与按键。
+装在手机里的 AI 编程环境：自带完整用户态工具链与构建栈，Agent 能改代码、跑起来、把 APK 构建出来，
+不需要电脑。
 
 ---
 
-## 核心能力
+## 项目来源
+
+Anvil 从 [niki914/zafiro](https://github.com/niki914/zafiro) 起步，原项目以 MIT 许可证发布。
+沿用的是**应用骨架**：Compose UI 外壳、设置体系、OKIA agent 运行时、libterm 终端后端。
+
+UI 之下全部重写。执行模型、工具系统、Python 方案、构建方案都与起点项目不同。
+
+原始版权声明原样保留在 [LICENSE](LICENSE) 中。
+
+## 做了哪些改造
+
+**执行层，重写**
+
+| 方面 | 原来 | 现在 |
+|---|---|---|
+| Python | 内嵌运行时在应用进程里解释执行 | 随包分发真实的 CPython 3.12.13（musl），从私有存储运行 |
+| 工具协议 | 内置 MCP 客户端与服务端 | 完全移除，代码与依赖里都不再有 MCP |
+| 助手接管 | 以 Xposed 模块 hook 外部语音助手 | 移除，树内不含任何 Xposed 模块 |
+| 更新检测 | 应用内更新提示 | 移除 |
+| 工具形态 | 运行期注册的 Python 自定义工具 | 十二个一等公民内置工具，类型化注册表 + 独立开关 |
+
+**工具链：随包分发，而不是假设环境**
+
+- 约 113 MB 工具链打进 APK：CPython、ripgrep、jq、7z、curl、sqlite3、`file`、fd、fzf、
+  strace-log-merge，以及 305 个 busybox applet，首启解包到私有存储。
+- 解包按内容寻址：把随包树的指纹与上次启动记录的值比对，只有内容真的变了才重新解包。
+- 名字以下划线开头的目录在打包阶段会被静默丢弃，因此以 `x__` 前缀随包，解包时还原。
+
+**构建环境：放在设备上**
+
+- 应用能在设备上拉起 Alpine chroot，装 JDK、Android SDK 与 Gradle，然后在容器里驱动
+  `gradlew` 出 APK —— 构建环境本身就是一个 Agent 可调用的工具。
+- 构建资产跟着应用走：bionic `aapt2` 与其 musl `libz`、装配签名的 Gradle init 脚本，
+  重建环境时不需要再联网拉取。
+
+**工程细节**
+
+- 可移植签名：依次尝试 `ZAFIRO_KEYSTORE` 或 `-PRELEASE_STORE_FILE`、仓库内 keystore、
+  标准 debug keystore。
+- 主包与并行测试构建使用各自独立的构建根，实验不会污染主环境。
+- 63 个源文件统一 `zafiro_` 日志前缀，便于 logcat 过滤。
+
+---
+
+## 支持的功能
 
 ### Agent 运行时
-带工具调用的循环、流式输出、重试、取消，会话持久化到 Room。提示词按「稳定段 / 易变段」分层组装，
-环境信息变化不会让缓存整体失效。
+
+带工具调用的循环、流式输出、分类重试、取消，会话持久化到 Room。提示词按「稳定段 / 易变段」
+分层组装，环境信息变化不会让缓存整体失效。
 
 ### 内置工具
 
@@ -49,22 +78,25 @@ Anvil 是一个以对话驱动的 Agent 应用：它把一整套用户态工具�
 | `screenshot` | 截取当前屏幕 |
 | `view_image` | 读取磁盘上的图片 |
 | `zafiro_env` | 检查工具链与构建环境，触发设备内构建 |
-| `screen_operation_accessibility` | 通过无障碍读取并驱动 UI 树 |
-| `screen_operation_shell` | 坐标点击 / 滑动 / 按键 |
+| `screen_operation_accessibility` | 通过无障碍服务读取并驱动 UI 树 |
+| `screen_operation_shell` | 坐标点击、滑动、按键 |
 
 ### 技能
+
 Markdown 技能随 APK 分发、按需加载。系统提示词保持精简，需要深层任务知识时由 Agent 主动取用。
 
 ### 界面
+
 Jetpack Compose + Material 3 Expressive，Liquid Glass 质感与 Capsule 圆角。会话、历史、用量，
-以及重排过的工具设置界面（每个工具独立开关）。
+以及带独立开关与整组开关的工具设置界面。
 
 ---
 
 ## 环境要求
 
 - Android 8.0+（`minSdk 26`），推荐 Android 14–16
-- Root（KernelSU 或 Magisk）以启用完整工具链；没有 root 应用仍可运行，但 App 进程自身无法执行私有目录里的二进制
+- Root（KernelSU 或 Magisk）以启用完整工具链 —— 没有 root 应用仍可运行，但 App 进程自身
+  无法执行私有存储里的二进制
 - 屏幕操作工具需要无障碍服务权限
 - 模型 API 需要 `INTERNET`
 
@@ -80,8 +112,13 @@ Jetpack Compose + Material 3 Expressive，Liquid Glass 质感与 Capsule 圆角�
 
 需要 JDK 17、Android SDK platform 37 / build-tools 36。产物在 `app/build/outputs/apk/debug/`。
 
-签名：放 `keystore/release.keystore` 或设环境变量 `ZAFIRO_KEYSTORE` 为绝对路径；
-两者都没有时回落到标准 debug keystore。
+签名依次取第一个可用的：`ZAFIRO_KEYSTORE`（绝对路径）、`-PRELEASE_STORE_FILE` Gradle 属性、
+`keystore/debug.keystore`、`keystore/release.keystore`，都没有时回落到 Gradle 生成的默认
+debug keystore。
+
+CI 会跑仓库检查：文档齐全、没有提交 keystore 或构建产物、源码里没有个人路径、Kotlin 不用 tab、
+随包工具链指纹与清单一致。改动工具链后用
+`python3 .github/scripts/gen_hosttools_version.py` 重新生成指纹。
 
 ---
 
@@ -99,8 +136,6 @@ remote-view/      远控视图基础件
 common-utils/     公共工具
 ```
 
----
-
 ## 技术栈
 
 | 层 | 选型 |
@@ -115,13 +150,6 @@ common-utils/     公共工具
 
 ---
 
----
-
-## 来源说明
-
-本项目由 [niki914/zafiro](https://github.com/niki914/zafiro) 衍生而来，原项目以 MIT 许可证发布。
-原始版权声明保留在 `LICENSE` 中。应用的大部分内容此后已被重写，当前功能集见 `CHANGELOG.md`。
-
 ## 许可
 
-见 `LICENSE`。
+MIT。见 [LICENSE](LICENSE)，其中同时保留了原始版权声明与当前版权声明。
