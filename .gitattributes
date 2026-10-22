@@ -1,0 +1,15 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.so binary
+*.so.* binary
+*.a binary
+*.jar binary
+*.apk binary
+*.keystore binary
+*.mgc binary
+
+app/src/main/assets/hosttools/** -text -diff
+app/src/main/assets/toolchain/** -text -diff

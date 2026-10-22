@@ -1,0 +1,75 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: search existing issues, and check that the toolchain finished unpacking
+        on first launch (it takes a few seconds).
+  - type: input
+    id: version
+    attributes:
+      label: App versionCode
+      description: Settings → About shows it.
+      placeholder: "32"
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version and ROM
+      placeholder: "Android 15, HyperOS 2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: root
+    attributes:
+      label: Root
+      options:
+        - KernelSU
+        - Magisk
+        - APatch
+        - Not rooted
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Actual behaviour, in order.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Ask the agent to ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Relevant lines from `logcat -b crash -d`, and the contents of
+        `files/hosttools.diag` if toolchain behaviour is involved.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues for the same problem
+          required: true
+        - label: This is not a security vulnerability (those go through the Security tab)
+          required: true

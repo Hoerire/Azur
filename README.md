@@ -1,6 +1,15 @@
 # Zafiro
 
+**English** · [简体中文](README_CN.md)
+
 An Android AI agent that runs on your phone — and can operate it.
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-brightgreen.svg)](#requirements)
+[![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)](#requirements)
+[![Kotlin](https://img.shields.io/badge/kotlin-2.2.0-7F52FF.svg)](https://kotlinlang.org)
+[![Build](https://github.com/Hoerire/zafiro/actions/workflows/build.yml/badge.svg)](https://github.com/Hoerire/zafiro/actions/workflows/build.yml)
+
 
 Zafiro is a chat-driven agent app that ships its own userspace toolchain, executes real
 commands on the device, and can even build Android APKs from inside itself.

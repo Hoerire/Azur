@@ -38,10 +38,10 @@ android {
             //   3. /data/local/aitools/环境/debug.keystore (on-device build environment)
             //   4. fall back to the default debug keystore AGP generates under ~/.android
             val candidates = buildList {
-                System.getenv("ZAFIRO_KEYSTORE")?.takeIf { it.isNotBlank() }?.let { add(java.io.File(it)) }
+                System.getenv("ZAFIRO_KEYSTORE")?.takeIf { it.isNotBlank() }?.let { add(project.file(it)) }
                 add(rootProject.file("keystore/debug.keystore"))
                 add(rootProject.file("keystore/release.keystore"))
-                add(java.io.File("/data/local/aitools/环境/debug.keystore"))
+                add(project.file("/data/local/aitools/环境/debug.keystore"))
             }
             candidates.firstOrNull { it.exists() }?.let { ks ->
                 storeFile = ks

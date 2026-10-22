@@ -19,6 +19,11 @@
 !README_CN.md
 !AGENTS.md
 !CLAUDE.md
+!CONTRIBUTING.md
+!CODE_OF_CONDUCT.md
+!SECURITY.md
+!CHANGELOG.md
+!/.github/**/*.md
 !/.agents/skills/**/*.md
 
 ### Android / Gradle

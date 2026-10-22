@@ -1,0 +1,43 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install platform 37 and build-tools 36
+        run: |
+          sdkmanager --install "platforms;android-37" "build-tools;36.0.0" || \
+            sdkmanager --list | grep -E "platforms;android-3[6-9]" | head
+
+      - name: Assemble debug
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest :agent-runtime:testDebugUnitTest --no-daemon
+        continue-on-error: true
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zafiro-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
