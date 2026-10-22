@@ -81,6 +81,11 @@ requiring a loader path the platform does not expose fails immediately instead o
 Provisioned state persists in the private tool root, so a capability acquired in one session remains available
 to later ones.
 
+The practical consequence is worth stating plainly: a pure-Python library installs in seconds, while a library
+that requires a C build is either supplied by Alpine's package index or is not available at all. Native
+capability is reached through the bundled binaries instead — `curl`, `jq`, `sqlite3`, `rg` and the rest cover
+the common cases that would otherwise need an extension module.
+
 ## Build loop
 
 The toolchain is sufficient to produce the application's own artifact. A request against the source tree
@@ -109,6 +114,18 @@ sub-agents and context pressure are modelled as first-class state.
 - Retry attempts are bounded by configuration
 - Provider, base URL, temperature, reasoning effort and timeouts are configured per model
 - Credentials are user-supplied; no endpoint is hardcoded
+
+## Conversation management
+
+Long sessions are handled by summarisation rather than truncation.
+
+- **Automatic compaction.** When context occupancy reaches a configured fraction of the model window — 70% by
+  default, adjustable in runtime settings, or disabled — the engine summarises the earlier portion through a
+  separate model call and retains the most recent turns verbatim. The compaction point is recorded as a divider
+  in the conversation timeline, so the boundary between summarised and original history stays visible.
+- **Manual compaction.** Sending `/compact` forces the same path regardless of current occupancy.
+- **Repetition detection.** Seven sensitivity levels, from off to strictest, suppress degenerate output loops.
+- **Persistence.** Conversations resume at the last turn after process termination.
 
 ## Tools
 
