@@ -137,7 +137,6 @@ Markdown 文档，按需加载。未被请求的技能不占用上下文。
 | `zafiro-cmd` | 工具层命令的规范写法，避免模型自行拼接 `su` 与 `chroot` |
 | `skill-creator` | 技能的编写、修改与测试 |
 | `tool-config` | 通过沙箱内的 JSON 读写应用设置 |
-| `termux` | 通过 SSH 接入另行安装的 Termux —— 首次配置与断连恢复 |
 
 ## 界面
 
@@ -156,7 +155,7 @@ Markdown 文档，按需加载。未被请求的技能不占用上下文。
 | `assets/hosttools/` | 1,579 个文件的工具链及其 `VERSION` 指纹 |
 | `assets/toolchain/` | `aapt2` 与其 musl `libz` |
 | `assets/buildkit/` | 用于签名与关闭 lint 的 Gradle init 脚本 |
-| `assets/skills/` | 六个技能文档 |
+| `assets/skills/` | 五个技能文档 |
 
 四条约束规范了对本仓库的改动：
 

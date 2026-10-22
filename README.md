@@ -152,7 +152,6 @@ Markdown documents loaded on demand. A skill that is never requested contributes
 | `zafiro-cmd` | Canonical tool-layer command syntax, so the model does not hand-roll `su` and `chroot` |
 | `skill-creator` | Authoring, editing and testing skills |
 | `tool-config` | Reading and modifying application settings through sandbox JSON |
-| `termux` | Reaching a separately installed Termux over SSH — first-time setup and reconnection |
 
 ## Interface
 
@@ -171,7 +170,7 @@ with local, libsu, Shizuku and SSH backends.
 | `assets/hosttools/` | The 1,579-file toolchain and its `VERSION` fingerprint |
 | `assets/toolchain/` | `aapt2` and its musl `libz` |
 | `assets/buildkit/` | Gradle init scripts for signing and lint suppression |
-| `assets/skills/` | The six skill documents |
+| `assets/skills/` | The five skill documents |
 
 Four constraints govern changes to this tree:
 
