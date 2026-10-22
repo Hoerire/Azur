@@ -5,7 +5,7 @@
 #   动态 musl 二进制 -> $HT/libexec/ + bin 里生成 wrapper（用自带 loader 启动）
 #   so / magic.mgc  -> $HT/lib、$HT/share
 umask 022   # 关键：默认 077 会把 hosttools/lib 建成 700，非 root(app 域)访问不到 musl loader
-KIT=${1:-/data/local/aitools/临时/buildkit}
+KIT=${1:-/data/local/aitools/tmp/buildkit}
 HT=${2:-/data/local/aitools/hosttools}
 SRC=$KIT/hosttools
 LD=$HT/lib/ld-musl-aarch64.so.1

@@ -229,7 +229,7 @@ Do the network work on the host with `hosttools/bin/python3` (wrapped in `netrun
   `https://raw.githubusercontent.com/<owner>/<ref>/<path>` (for a URL with `blob/<ref>/`, take the path after it).
 
 Download into a temporary directory first, never straight into the skills root.
-Temporary downloads must land in `/data/local/aitools/临时/` (or the app private downloads dir); the skills root is the only allowed final destination — never leave temp files in `/tmp`, `/sdcard` or the skills root.
+Temporary downloads must land in `/data/local/aitools/tmp/` (or the app private downloads dir); the skills root is the only allowed final destination — never leave temp files in `/tmp`, `/sdcard` or the skills root.
 
 ## Install
 

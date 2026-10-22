@@ -9,16 +9,16 @@
 #   sh env.sh snapshot [out] 打 rootfs 快照
 #   sh env.sh restore <tgz>  还原 rootfs 快照
 A=${ZAFIRO_BASE:-/data/local/aitools}
-Z=${ZAFIRO_ENV:-$A/环境}
+Z=${ZAFIRO_ENV:-$A/env}
 R=$Z/rootfs
 SRC=${ZAFIRO_SRC:-}
 if [ -z "$SRC" ]; then
-  for d in "$A"/工程/*/; do
+  for d in "$A"/project/*/; do
     if [ -f "$d/gradlew" ]; then SRC=${d%/}; break; fi
   done
 fi
-OUT=${ZAFIRO_OUT:-$A/产物}
-LOG=$A/日志
+OUT=${ZAFIRO_OUT:-$A/out}
+LOG=$A/logs
 HOST_MIRROR=${ZAFIRO_MIRROR:-https://mirrors.cloud.tencent.com/alpine}
 APK_VER=$(cat $R/etc/alpine-release 2>/dev/null || echo 3.20.3)
 APK_REL=v${APK_VER%.*}

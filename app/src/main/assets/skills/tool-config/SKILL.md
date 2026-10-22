@@ -113,7 +113,7 @@ that a restart is needed, hand the decision over, and stop there.
 | 层 | 模式 | 放什么 | 命中后 |
 |---|---|---|---|
 | ① 破坏性命令 | `DISABLED`（默认关） | rm -rf、mkfs、dd、setprop、reboot、pm uninstall、su | 不拦；需要时自己在规则页打开 |
-| ② 无效操作 | `ALWAYS` | 做了必错或无意义：全盘枚举、手搓 chroot、grep 的 PCRE 选项、gradle 旧参数、直接跑 gradlew、`--src` 指 源码/、手工 tar 打环境包 | 直接拦 + `怎么改:` 提示 |
+| ② 无效操作 | `ALWAYS` | 做了必错或无意义：全盘枚举、手搓 chroot、grep 的 PCRE 选项、gradle 旧参数、直接跑 gradlew、`--src` 指 src/、手工 tar 打环境包 | 直接拦 + `怎么改:` 提示 |
 | ③ 高影响操作 | `CONFIRM` | 写共享存储、写 `/tmp`、写系统分区、写其他 App 沙盒、pkill 宽匹配 | **弹窗确认**；允许即执行，拒绝 `CONFIRM_DENIED`，无渠道 `CONFIRM_UNAVAILABLE` |
 
 实测（2026-10-20）：`CONFIRM` 会真的弹窗，用户点「允许」后命令照常执行 → 既不放任也不堵路。

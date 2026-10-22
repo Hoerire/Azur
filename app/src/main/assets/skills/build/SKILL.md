@@ -1,9 +1,21 @@
 ---
 name: build
-description: 本机构建与出包唯一入口。涉及「构建/编译/打包/出 APK/debug/release/assemble/R8/资源裁剪/签名 keystore/versionCode/versionName/applicationId 包名/gradle/AGP/SDK/build-tools/aapt2/NDK/工具链/gcc/clang/cmake/ninja/rust/go/node/环境部署/联网重建/rootfs/容器 chroot/tmp 临时目录/产物 md5/安装 APK/pm install/覆盖安装/共存测试/APK 分析/反编译/反汇编/解包/dex/smali/AXML/AndroidManifest 解析/so/ELF/readelf/objdump/nm/strings/签名校验/apksigner/执行/运行/跑命令/跑脚本/BUILD FAILED/编译报错/找不到 SDK/内存不足重启/命令没报错但输出为空/Unknown option/unrecognized option/not executable 64-bit ELF/Permission denied/toybox/busybox」都先读本技能；改代码后的构建、校验、清理同样按本技能。
+description: 本机构建与出包唯一入口。涉及「构建/编译/打包/出 APK/debug/release/assemble/R8/资源裁剪/签名 keystore/versionCode/versionName/applicationId 包名/gradle/AGP/SDK/build-tools/aapt2/NDK/工具链/gcc/clang/cmake/ninja/rust/go/node/env部署/联网重建/rootfs/容器 chroot/tmp 临时目录/out md5/安装 APK/pm install/覆盖安装/共存测试/APK 分析/反编译/反汇编/解包/dex/smali/AXML/AndroidManifest 解析/so/ELF/readelf/objdump/nm/strings/签名校验/apksigner/执行/运行/跑命令/跑脚本/BUILD FAILED/编译报错/找不到 SDK/内存不足重启/命令没报错但输出为空/Unknown option/unrecognized option/not executable 64-bit ELF/Permission denied/toybox/busybox」都先读本技能；改代码后的构建、校验、清理同样按本技能。
 ---
 
 ## 铁律：装包前先报改动（用户强制要求）
+
+**执行门禁（2026-10-23 追加，因为被违反过两次）**
+
+- 摘要必须是**单独一条消息**，消息里只有摘要；`pm install` 只能在**下一条**消息里发。摘要和安装命令写在同一条 = 视为没写。
+- 摘要必须含：本轮 diff 的文件表（每个文件一行：改了什么）、产物路径、size、md5、versionCode。
+- 没写摘要就装 = 失败。用户会直接打断并要求重来。
+
+**同日踩到的两个真坑，写进摘要时顺手核对：**
+
+1. 改完 `src/` 忘了 `sh project/sync.sh <树名>` 就构建 → 装上去的是**旧代码**（表现为改了 `FIXED_DIRS` 但机器上仍建中文目录）。
+2. 装包后 `HostToolsInstaller` 会用 **APK 里的 `assets/buildkit`** 覆盖 `/data/local/aitools/*.sh`。手工改过根脚本后不重新出包，下次装包就被回滚（表现为 `build-src.sh` 又变成中文路径、构建报 `SRC 必须在 .../工程/ 下`）。
+
 
 任何 `pm install` / 覆盖安装 **之前**，必须先输出本轮改动摘要，再装：
 
@@ -66,24 +78,24 @@ Java  java(17/21) javac jar javadoc javap jlink jimage
 
 ## 1. 目录
 ```
-环境/  rootfs run.sh env.sh android-sdk/ gradle-<ver>/ gradle-home/ toolchain/ debug.keystore
-工程/  <源码同名目录>（gradlew 只在这里跑）+ sync.sh
-源码/  权威源码，只改不编译（必须无 build/ .gradle/ .kotlin/）
-产物/  日志/  临时/
+env/  rootfs run.sh env.sh android-sdk/ gradle-<ver>/ gradle-home/ toolchain/ debug.keystore
+project/  <源码同名目录>（gradlew 只在这里跑）+ sync.sh
+src/  权威源码，只改不编译（必须无 build/ .gradle/ .kotlin/）
+out/  logs/  tmp/
 ```
 
-## 2. 环境
+## 2. env
 - 有 `环境/env.sh` 就是装好了，不要重建。查版本 `zafiro_env(action="check")`。
 - 缺 → `sh /data/local/aitools/bootstrap-env.sh`（幂等装配器：缺 rootfs/gradle/platform×3/build-tools/cmdline-tools 时**自动走 netrun 下载并装配**，含 `apk add openjdk17`、aapt2 toolchain 与 debug.keystore 自愈，全程不用人工下载）。`build-src.sh` preflight 缺 gradle 时会自动调它；构建失败会自动跑 env-doctor 并把结果放日志尾部。
 - 体检/补装：`sh /data/local/aitools/aitools-fix.sh --check`，加 `--with-ndk --with-platforms --with-cmdline` 自动补。
-- 依赖缓存 `环境/gradle-home`（实测全量约 1.39G）：首次构建由 gradle 自己拉，无预热脚本、无 seed 文件。是否已缓存用 `du -sh 环境/gradle-home` 判断，不看文档。
+- 依赖缓存 `环境/gradle-home`（实测全量约 1.39G）：首次构建由 gradle 自己拉，无预热脚本、无 seed 文件。是否已缓存用 `du -sh env/gradle-home` 判断，不看文档。
 
 ## 3. 出包
 ```sh
 zafiro_env(action="build", args="-PdevSuffix --max-workers=1")            # 工程下只有一个工程时
-sh /data/local/aitools/build-src.sh --src=/data/local/aitools/工程/<名> --max-workers=1
+sh /data/local/aitools/build-src.sh --src=/data/local/aitools/project/<名> --max-workers=1
 ```
-- 成功三判据：日志 `BUILD SUCCESSFUL`、`RC=0`、`path: 产物/…apk`。
+- 成功三判据：日志 `BUILD SUCCESSFUL`、`RC=0`、`path: out/…apk`。
 - 脚本自动落盘并打印 `path/size/md5/appId=…`；自定义名 `ZAFIRO_APK_NAME=`，不落盘 `ZAFIRO_NO_COPY=1`。
 - 必须串行，`--max-workers=1` 必带。热构建 2s、冷 15-30s、全模块首编 4-5 分钟。
 - 强制重打：删 `app/build/outputs/apk/<variant>/app-release.apk` 再跑，比 `--rerun-tasks` 快。
@@ -99,22 +111,22 @@ sh /data/local/aitools/build-src.sh --src=/data/local/aitools/工程/<名> --max
 `awk / stat -c / xargs -r / sort -k2 / unzip -l / readlink -f` 两端都行；`sed -i` 用 `#` 遇到含 `##` 的文本会 `bad pattern` → 换 `@`。
 
 ## 5. 改源码 & 校验
-**修复铁律（三步，缺一即失败）**：① 改 `源码/` ② `sh 工程/sync.sh <源码目录名>` 必须回 `SYNC OK` ③ 才允许构建。
+**修复铁律（三步，缺一即失败）**：① 改 `源码/` ② `sh project/sync.sh <源码目录名>` 必须回 `SYNC OK` ③ 才允许构建。
 漏第②步 = 编译的是旧代码，白等一轮（已踩）。
 
 ```sh
 cp -p f f.bak && sed -i '453s@.*@新内容@' f && sed -n '450,456p' f    # 行号定位最稳，改完必须回读
-sh /data/local/aitools/工程/sync.sh <源码目录名>                       # 唯一同步入口，内含 md5 diff
+sh /data/local/aitools/project/sync.sh <源码目录名>                       # 唯一同步入口，内含 md5 diff
 ```
 - 批量改写优先容器内 `python3`（引号地狱少）。
 - 校验类改动最容易假失败：先看磁盘真实产物，再看脚本判定。
 
 ## 6. 容器执行
 ```sh
-zafiro_env(action="shell", cmd="gcc -O2 -o /data/local/aitools/临时/a /data/local/aitools/临时/a.c && /data/local/aitools/临时/a")
+zafiro_env(action="shell", cmd="gcc -O2 -o /data/local/aitools/tmp/a /data/local/aitools/tmp/a.c && /data/local/aitools/tmp/a")
 zafiro_env(action="apk", cmd="add --no-cache jq")
 ```
-- 容器只 rbind `源码/工程/产物/日志/临时`：根下脚本在容器里是 rootfs 旧副本，必须在宿主 `shell` 改。
+- 容器只 rbind `源码/project/out/logs/tmp`：根下脚本在容器里是 rootfs 旧副本，必须在宿主 `shell` 改。
 - 容器 `/tmp` 与宿主不同份，别当工作区。
 
 ## 7. 装包与验证
@@ -131,8 +143,8 @@ cp x.apk /data/local/tmp/x.apk && pm install -r /data/local/tmp/x.apk && rm -f /
 ## 9. 踩坑（实测）
 - `>>` 追加到无换行结尾的文件会粘连 → 先 `printf '\n' >> f`。
 - 宿主别定义 shell 函数（`fc: history functions not available`）；`shell` 工具别传 `workdir`（`Session gone`），用绝对路径。
-- 目录改名后先 `grep -rn 旧名 /data/local/aitools/临时` 改掉脚本里写死的路径，否则镜像脚本认为「源为空」把目标清空（实测删过 1076 个文件）。破坏性脚本先 dry-run 打印将删数量。
-- 长任务 `nohup … > 日志/x.log 2>&1 &` 后按固定间隔 `tail -n 4`，禁止紧循环轮询。
+- 目录改名后先 `grep -rn 旧名 /data/local/aitools/tmp` 改掉脚本里写死的路径，否则镜像脚本认为「源为空」把目标清空（实测删过 1076 个文件）。破坏性脚本先 dry-run 打印将删数量。
+- 长任务 `nohup … > logs/x.log 2>&1 &` 后按固定间隔 `tail -n 4`，禁止紧循环轮询。
 - 内存 <300M free 先 `zafiro_env(action="shell", cmd="gradle --stop")` 再编译。
 
 ## 10. 报告
@@ -143,3 +155,21 @@ cp x.apk /data/local/tmp/x.apk && pm install -r /data/local/tmp/x.apk && rm -f /
 - 解法：assets 侧目录改名 `x__<原名>`，`HostToolsInstaller.copyDir` 用 `removePrefix("x__")` 还原。
 - `pyexpat` 需 `assets/hosttools/lib/libexpat.so.1`（musl 2.8.1）。
 - pip 只能 `--version`，**不能 `pip install`**（musl PT_INTERP=/lib/ld-musl-aarch64.so.1 不存在）。装纯 py 包用 `sh /data/local/aitools/pyinstall.sh <pkg>`。
+
+## hosttools / assets 改动后的重铺（实测）
+
+- HostToolsInstaller 的重铺开关是 `app/src/main/assets/hosttools/VERSION` 的 **SHA-1**（stamp 文件 = `files/hosttools.stamp`），**不是** APK lastUpdateTime。改了 hosttools 里的二进制却不动 VERSION → 装完新版用户手里还是旧文件（aapt2 mtime 不变、新加的 so 不出现），看着"改了没生效"。
+- 改 hosttools 必须同轮改 VERSION（追加一行标记，如 `toolchain-clean-1`）。
+- **assets 下有两份 toolchain**：`assets/toolchain`（进 APK）与 `assets/hosttools/toolchain`（铺到 files/hosttools）。只改一份 → APK 里还是旧的。先 `find . -type d -name toolchain` 找全。
+- 判断是否真重铺：`ls -l files/hosttools/toolchain/aapt2` 的 mtime + `cat files/hosttools.stamp`。
+- 改了 assets 里的大文件（assets 目录 >10MB）要 `rm -rf project/<tree>/app/build` 再构建，否则 AGP 复用旧 assets 缓存。
+- `files/skills/` 是覆盖式同步不是镜像：assets 里删掉的技能（如已移除的 `termux`）不会自动消失，要手工 `rm -rf files/skills/<id>`。
+
+## 出包前守卫：assets 洁净度
+
+```sh
+grep -ril termux app/src/main/assets | grep . && echo "FAIL: termux refs"
+```
+- 第三方预编译二进制（aapt2 及其 71 个库）出自 termux-packages 构建环境：RUNPATH 指向 `/data/data/com.termux/files/usr/lib`，`.rodata` 带 `/home/builder/.termux-build/...`。设备上装着 Termux 时能跑，换机/卸载立刻 `library "libz.so.1" not found`。
+- 净化（不需要重编）：`patchelf --set-rpath '$ORIGIN'`（库）/ `'$ORIGIN/lib'`（可执行）；`.rodata` 等长掩码（`termux`→`xxxxxx`，长度不变、不动偏移）；把闭包缺的库（libz.so.1 / libexpat.so.1 / libbz2.so.1.0）收编进 `toolchain/lib`。
+- 验收：**不设** LD_LIBRARY_PATH 直接跑 `toolchain/aapt2 version`，再 `aapt2 compile <某个 values.xml>` 出 zip；`grep -c termux` 必须为 0。

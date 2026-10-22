@@ -5,8 +5,8 @@
 #           ZAFIRO_APK_NAME(产物文件名) ZAFIRO_NO_COPY=1(不落产物) ZAFIRO_KS
 set -u
 A=${ZAFIRO_BASE:-/data/local/aitools}
-Z=${ZAFIRO_ENV:-$A/环境}
-OUT=${ZAFIRO_OUT:-$A/产物}
+Z=${ZAFIRO_ENV:-$A/env}
+OUT=${ZAFIRO_OUT:-$A/out}
 V=${ZAFIRO_VARIANT:-release}
 SRC=${ZAFIRO_SRC:-}
 ARGS=""
@@ -19,16 +19,16 @@ done
 if [ -z "$SRC" ]; then
   N=0
   CAND=""
-  for d in "$A"/工程/*/; do
+  for d in "$A"/project/*/; do
     d=${d%/}
     if [ -f "$d/gradlew" ]; then N=$((N+1)); CAND="$CAND $d"; fi
   done
   if [ "$N" = "0" ]; then
-    echo "SRC missing: 工程/ 下没有含 gradlew 的子目录（每个任务应建 工程/<task>/）"
+    echo "SRC missing: project/ 下没有含 gradlew 的子目录（每个任务应建 project/<task>/）"
     exit 1
   fi
   if [ "$N" -gt 1 ]; then
-    echo "工程/ 下有 $N 个 gradle 工程，请用 --src= 明确指定其一："
+    echo "project/ 下有 $N 个 gradle 工程，请用 --src= 明确指定其一："
     for c in $CAND; do echo "  $c"; done
     exit 1
   fi
@@ -36,7 +36,7 @@ if [ -z "$SRC" ]; then
 fi
 { [ -n "${SRC:-}" ] && [ -f "$SRC/gradlew" ]; } || { echo "SRC missing: ${SRC:-none}"; exit 1; }
 
-# 工程目录命名铁律（2026-10-21）：工程/<名> 必须与 源码/<名> 一一对应。
+# 工程目录命名铁律（2026-10-21）：工程/<名> 必须与 src/<名> 一一对应。
 # 目的：多家源码并存时绝不共用同一 build 树（否则 build/ 缓存、产物、md5 对齐全部串味）。
 SB=$(basename "$SRC")
 # 容器内路径：run.sh 把 $A 绑到容器 /data/local/aitools，故宿主 $A 前缀换成容器根
@@ -45,14 +45,14 @@ SRC_G=$(printf '%s' "$SRC" | sed "s#^$A#/data/local/aitools#")
 ZG=$(printf '%s' "$Z" | sed "s#^$A#/data/local/aitools#")
 
 case "$SRC" in
-  "$A"/工程/*) ;;
-  *) echo "SRC 必须在 $A/工程/ 下: $SRC"; exit 2 ;;
+  "$A"/project/*) ;;
+  *) echo "SRC 必须在 $A/project/ 下: $SRC"; exit 2 ;;
 esac
-if [ -d "$A/源码" ] && [ ! -d "$A/源码/$SB" ]; then
-  echo "工程目录名与源码不匹配: 工程/$SB 需要 源码/$SB 存在"
-  echo "改法: sh $A/工程/sync.sh <源码目录名> 然后 --src=$A/工程/<源码目录名>"
+if [ -d "$A/src" ] && [ ! -d "$A/src/$SB" ]; then
+  echo "project目录名与源码不匹配: project/$SB 需要 src/$SB 存在"
+  echo "改法: sh $A/project/sync.sh <源码目录名> 然后 --src=$A/project/<源码目录名>"
   echo "现有源码:"
-  ls -1 "$A/源码" 2>/dev/null | sed 's/^/  /'
+  ls -1 "$A/src" 2>/dev/null | sed 's/^/  /'
   exit 2
 fi
 [ -x "$Z/run.sh" ] || { echo "env missing: $Z/run.sh"; exit 1; }
@@ -67,7 +67,7 @@ if [ -z "$GDLIB" ]; then
   # 构建即自愈：不依赖谁来"记得部署"，缺 gradle 就在这里装配
   echo "[preflight] 环境缺 gradle 发行版，尝试装配：sh $A/bootstrap-env.sh"
   sh $A/bootstrap-env.sh || {
-    echo "[preflight] 装配没完成：按上面清单用 py_download_file 下到 $A/临时/dl/ 后重跑构建"
+    echo "[preflight] 装配没完成：按上面清单用 py_download_file 下到 $A/tmp/dl/ 后重跑构建"
     exit 1
   }
   GDLIB=$(ls -1d "$Z"/gradle-[0-9]*/lib 2>/dev/null | sort -V | tail -1)
@@ -75,7 +75,7 @@ fi
 [ -n "$GDLIB" ] || { echo "env missing: $Z/gradle-<ver>/lib"; exit 1; }
 KS=${ZAFIRO_KS:-$Z/debug.keystore}
 # 容器内路径映射（run.sh 把宿主 $A 绑到容器 /data/local/aitools）
-GDLIB_G=$(printf '%s' "$GDLIB" | sed "s#^$Z#/data/local/aitools/环境#")
+GDLIB_G=$(printf '%s' "$GDLIB" | sed "s#^$Z#/data/local/aitools/env#")
 KS_G=$(printf '%s' "$KS" | sed "s#^$A#/data/local/aitools#")
 if [ "$V" = "release" ]; then
   TASK=":app:assembleRelease"

@@ -117,7 +117,7 @@ internal object LocalSettingsDefaults {
                 "\\bgrep\\b[^\\n]*\\s-P",
                 "(^|[;&|\\n])\\s*\\S*gradle\\S*[^\\n]*--rerun-tasks",
                 "(^|[;&|\\n])\\s*(?:[^\\n ]*/)?gradlew\\b",
-                "build-src\\.sh[^\\n]*--src=\\S*/源码/",
+                "build-src\\.sh[^\\n]*--src=\\S*/src/",
                 "(^|[;&|\\n])\\s*tar\\b[^\\n]*-c[^\\n]*\\b环境/",
             ),
             toolFilter = listOf("shell", "zafiro_env"),

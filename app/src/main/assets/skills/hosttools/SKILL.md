@@ -8,7 +8,7 @@ description: 宿主侧内置命令行工具集（rg 搜索 / jq JSON / sqlite3 �
 ```
 /data/user/0/com.hoerire.tools/files/hosttools/     ← app 私有目录
   bin/       53 个命令（直接 exec；musl 动态工具的 wrapper 已自动带 loader）
-  toolchain/ aapt2(Android 原生 ELF) + lib/*.so —— 容器 aarch64 构建必需，bootstrap 自动拷到 环境/toolchain
+  toolchain/ aapt2(Android 原生 ELF) + lib/*.so —— 容器 aarch64 构建必需，bootstrap 自动拷到 env/toolchain
   applets/   305 个 busybox 软链（awk sed grep tar md5sum xargs sort uniq …）
   libexec/   动态工具真身        lib/  库 + python3.12 标准库 + site-packages(pip)
   TOOLS.txt  全量清单
@@ -48,10 +48,17 @@ description: 宿主侧内置命令行工具集（rg 搜索 / jq JSON / sqlite3 �
 1. **单文件静态二进制**：下到 `$HT/bin/<name>`，`chmod 755` 即可。
 2. **Alpine arm64 包**（apk 就是 tar.gz，包通常几十 KB）：
    ```sh
-   tar -xzf pkg.apk -C /data/local/aitools/临时/x        # usr/bin/X、usr/lib/*.so*
+   tar -xzf pkg.apk -C /data/local/aitools/tmp/x        # usr/bin/X、usr/lib/*.so*
    cp .../usr/bin/X $HT/libexec/X && chmod 755 $HT/libexec/X
    printf '#!/system/bin/sh\nexec %s/lib/ld-musl-aarch64.so.1 --library-path %s/lib %s/libexec/X "$@"\n' "$HT" "$HT" "$HT" > $HT/bin/X
    chmod 755 $HT/bin/X; cp .../usr/lib/*.so* $HT/lib/     # 缺库逐个补
    # 有 libX.so.A.B 就建链：ln -sf libX.so.A.B $HT/lib/libX.so.A
    ```
-3. **建项目 / 编译**：目录固定 `/data/local/aitools/{源码,工程,产物,日志,临时}`；改完先 `sync.sh` 再构建；gradle 串行，只带 `--max-workers=1`。
+3. **建项目 / 编译**：目录固定 `/data/local/aitools/{源码,工程,产物,日志,tmp}`；改完先 `sync.sh` 再构建；gradle 串行，只带 `--max-workers=1`。
+
+## 在设备上跑 Python：随包 CPython 是唯一解释器
+
+- 路径：`/data/user/0/com.hoerire.tools/files/hosttools/bin/python3`（3.12，纯 stdlib）。
+- **zafiro_env 的 Alpine chroot 里没有 python3**（`python3: not found`），也看不到 `/data/user`。chroot 里要用它只能 `nsenter -t 1 -m -- /data/user/0/.../bin/python3 script.py`。
+- 执行通道优先级：App 内 `shell` 工具（用户能看到命令与输出）> `zafiro_env shell` + nsenter。`shell` 挂掉（PTY 层故障）时才退到后者。
+- 批量扫描/改写 Kotlin、二进制一律写 python 脚本再执行。别用 `sed -i`/heredoc 拼多行：引号地狱（`unterminated quoted string`、`MISSING_REQUIRED_FIELD`）返工成本远高于写脚本。

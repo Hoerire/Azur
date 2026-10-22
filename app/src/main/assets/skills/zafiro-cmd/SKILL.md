@@ -28,7 +28,7 @@ sh /data/local/aitools/env-doctor.sh        # 25 项实测体检，缺什么会�
 ```
 - 构建失败时 `build-src.sh` **已自动**跑 doctor 并写进日志尾部，先看日志
 - 缺件按 fix 行手动补；宿主工具在 `files/hosttools`（见 `hosttools` 技能）
-- 判断环境在不在：`ls -A /data/local/aitools/环境`（有 `rootfs`/`android-sdk`/`gradle-*` 即可），不要递归、不要 du
+- 判断环境在不在：`ls -A /data/local/aitools/env`（有 `rootfs`/`android-sdk`/`gradle-*` 即可），不要递归、不要 du
 
 ## 2. 构建（实测 BUILD SUCCESSFUL in 30~40s）
 ```
@@ -42,21 +42,21 @@ sh /data/local/aitools/env-doctor.sh        # 25 项实测体检，缺什么会�
 ## 3. 容器内执行（实测）
 ```
 {"action":"shell","cmd":"gcc --version"}
-{"action":"shell","cmd":"gcc -O2 -o /data/local/aitools/临时/a /data/local/aitools/临时/a.c && /data/local/aitools/临时/a"}
-{"action":"shell","cmd":"cmake -S /data/local/aitools/临时/p -B /data/local/aitools/临时/p/out -G Ninja && cmake --build /data/local/aitools/临时/p/out"}
-{"action":"shell","cmd":"md5sum /data/local/aitools/产物/app-debug.apk"}
+{"action":"shell","cmd":"gcc -O2 -o /data/local/aitools/tmp/a /data/local/aitools/tmp/a.c && /data/local/aitools/tmp/a"}
+{"action":"shell","cmd":"cmake -S /data/local/aitools/tmp/p -B /data/local/aitools/tmp/p/out -G Ninja && cmake --build /data/local/aitools/tmp/p/out"}
+{"action":"shell","cmd":"md5sum /data/local/aitools/out/app-debug.apk"}
 {"action":"shell","cmd":"rustc --version; node --version; go version"}                        # 多条用分号是允许的
 {"action":"apk","cmd":"info -e gcc"}          # 查包是否安装，装了回显包名
 {"action":"apk","cmd":"add --no-cache jq"}    # 装包（腾讯源）
 ```
-**临时铁律**：临时文件、构建目录、草稿一律放 `/data/local/aitools/临时/` —— 这是唯一被 run.sh 绑进容器的临时目录，宿主与容器同一份。禁用 `/tmp`、`/sdcard`；`/data/local/tmp` 只给 `pm install` 用。
+**临时铁律**：临时文件、构建目录、草稿一律放 `/data/local/aitools/tmp/` —— 这是唯一被 run.sh 绑进容器的临时目录，宿主与容器同一份。禁用 `/tmp`、`/sdcard`；`/data/local/tmp` 只给 `pm install` 用。
 容器 `/tmp` 是 rootfs 内部、与宿主不同份，产物会丢 → 一律不用。`临时/` 实测 cmake+ninja 零 `bad depfile` 噪音。
 
 ## 4. 宿主侧操作（不经过容器）
 ```
-sed -n '100,130p' /data/local/aitools/工程/<源码同名目录>/app/src/main/AndroidManifest.xml
-ls -A /data/local/aitools/工程/<源码同名目录>
-tail -20 /data/local/aitools/日志/build-py.log
+sed -n '100,130p' /data/local/aitools/project/<源码同名目录>/app/src/main/AndroidManifest.xml
+ls -A /data/local/aitools/project/<源码同名目录>
+tail -20 /data/local/aitools/logs/build-py.log
 ```
 - 宿主 `python3` 路径：`/data/user/0/com.hoerire.tools/files/hosttools/bin/python3`
 
@@ -73,5 +73,5 @@ tail -20 /data/local/aitools/日志/build-py.log
 - 看到 `ENV_NOT_INSTALLED` / `PACK_NOT_FOUND`：跑 `sh /data/local/aitools/env-doctor.sh` 看缺哪项，按 fix 行手动补（**没有 deploy 了**）。
 
 ## 目录地图（先读这个）
-`/data/local/aitools/{源码,工程,产物,日志,临时}` + `环境/`（构建工具链，缺件跑 env-doctor）。
+`/data/local/aitools/{源码,工程,产物,日志,tmp}` + `环境/`（构建工具链，缺件跑 env-doctor）。
 `源码/zafiro-15-1.8.1-Fork` 就是权威源码树，直接改，别管它内部模块怎么分。

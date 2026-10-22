@@ -7,10 +7,10 @@
 #   装配 → 本脚本：解压、放位、chmod、校验
 #
 # 用法：
-#   sh /data/local/aitools/bootstrap-env.sh          # 检查 + 用 临时/dl 里已有的包装配，仍缺则打印下载清单
+#   sh /data/local/aitools/bootstrap-env.sh          # 检查 + 用 tmp/dl 里已有的包装配，仍缺则打印下载清单
 #   sh /data/local/aitools/bootstrap-env.sh --check  # 只检查（构建前 preflight 用，0 开销）
 set -u
-A=${A:-/data/local/aitools}; Z=$A/环境; SDK=$Z/android-sdk; DL=$A/临时/dl
+A=${A:-/data/local/aitools}; Z=$A/env; SDK=$Z/android-sdk; DL=$A/tmp/dl
 M=https://mirrors.cloud.tencent.com
 CHECK=0; [ "${1:-}" = "--check" ] && CHECK=1
 mkdir -p "$DL"
@@ -48,10 +48,10 @@ if [ -x "$Z/rootfs/bin/busybox" ] && [ ! -x "$Z/rootfs/usr/bin/java" ] && [ -x "
   printf 'nameserver 223.5.5.5\nnameserver 119.29.29.29\n' > "$Z/rootfs/etc/resolv.conf" 2>/dev/null
   printf '%s\n%s\n' "$M/alpine/v3.20/main" "$M/alpine/v3.20/community" > "$Z/rootfs/etc/apk/repositories" 2>/dev/null
   sh "$Z/run.sh" /bin/sh -c 'apk update >/dev/null 2>&1; apk add --no-cache openjdk17-jre-headless ca-certificates >/dev/null 2>&1' \
-    && say "ok jre17" || say "warn: apk add 失败（可手动 sh 环境/run.sh /bin/sh -c 'apk add openjdk17-jre-headless'）"
+    && say "ok jre17" || say "warn: apk add 失败（可手动 sh env/run.sh /bin/sh -c 'apk add openjdk17-jre-headless'）"
 fi
 
-if [ -z "$MISS" ]; then say "环境就绪（无需装配）"; exit 0; fi
+if [ -z "$MISS" ]; then say "env就绪（无需装配）"; exit 0; fi
 say "缺:$MISS"
 [ "$CHECK" = 1 ] && exit 1
 
@@ -75,14 +75,14 @@ for v in 35 36; do [ -f "$SDK/platforms/android-$v/android.jar" ] || dl "$M/Andr
 [ -x "$SDK/build-tools/36.0.0/aapt2" ] || dl "$M/AndroidSDK/build-tools_r36_linux.zip" "$DL/build-tools_r36_linux.zip"
 [ -d "$SDK/cmdline-tools/latest/bin" ] || dl "$M/AndroidSDK/commandlinetools-linux-11076708_latest.zip" "$DL/commandlinetools-linux-11076708_latest.zip"
 
-# ── 2b. 用 临时/dl 里已有的包装配 ──
+# ── 2b. 用 tmp/dl 里已有的包装配 ──
 unp() {  # $1=zip/tgz $2=目标
   case "$1" in
     *.zip) unzip -qo "$1" -d "$2" 2>/dev/null ;;
     *.tar.gz|*.tgz) mkdir -p "$2"; tar -xzf "$1" -C "$2" 2>/dev/null ;;
   esac
 }
-X=$A/临时/bs-x; rm -rf "$X"; mkdir -p "$X"
+X=$A/tmp/bs-x; rm -rf "$X"; mkdir -p "$X"
 
 if ! [ -x "$Z/rootfs/bin/busybox" ]; then
   f=$(ls "$DL"/alpine-minirootfs-*.tar.gz 2>/dev/null | head -1)
