@@ -2,7 +2,13 @@
 
 住在手机里的 AI 编程环境。
 
-Anvil 是一个 Android Agent 运行时，外面焊了一整套真实的开发工具链。APK 里带着 CPython、305 个
+## 由来
+
+Anvil 从 [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1 起步。继承下来的是外壳：Compose UI、
+设置框架、OKIA Agent 运行时、`libterm` 终端。长出来的是自己的东西：一个跑真实 aarch64 二进制的工具执行
+层，一条在设备上把构建工具链备齐的环境自举链路，一条自带资源的构建流水线。上游署名保留在关于页。
+
+具体说，Anvil 是一个 Android Agent 运行时，外面焊了一整套真实的开发工具链。APK 里带着 CPython、305 个
 applet 的 busybox、ripgrep、jq、7z、curl、sqlite3、git 和 aarch64 的 `aapt2`；首次启动把它们铺进私有
 目录，直接交给模型当可执行文件用。于是 Agent 能在手机上翻仓库、跑测试、拉一个带 JDK 和 Android SDK 的
 Alpine chroot，然后在这台手机上把一个 APK 编出来。
@@ -85,11 +91,6 @@ Alpine chroot，然后在这台手机上把一个 APK 编出来。
 
 全 Compose，Material 3 Expressive 加 Liquid Glass、Capsule 质感，浅色 / 深色 / 跟随系统，六种语言的
 应用级语言选择，悬浮球快速唤起，终端基于 `libterm`，支持本地、libsu、Shizuku、SSH 四种 backend。
-
-## 更新检测
-
-冷启动时向 GitHub 查最新 release，拿 tag 跟当前 `versionName` 比对，有新版就弹窗。关掉弹窗即记账，
-同一版本只打扰一次。draft 会跳过；还没有 stable 时回落到最近一个 release。
 
 ## 设计取舍
 

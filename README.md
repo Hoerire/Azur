@@ -2,8 +2,16 @@
 
 An AI coding environment that lives on your phone.
 
-Anvil is an Android agent runtime with a real developer toolchain bolted to it. It carries CPython, a
-305-applet busybox, ripgrep, jq, 7z, curl, sqlite3, git and aarch64 `aapt2` inside the APK; on first launch
+## Origin
+
+Anvil descends from [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1. What it kept is the shell: the
+Compose UI, the settings framework, the OKIA agent runtime and the `libterm` terminal. What it grew is its own:
+a tool execution layer that runs real aarch64 binaries, an environment bootstrap that provisions a build
+toolchain on the device, and a build pipeline that ships its own assets. Upstream is credited in the About
+screen.
+
+Concretely, Anvil is an Android agent runtime with a real developer toolchain bolted to it. It carries CPython,
+a 305-applet busybox, ripgrep, jq, 7z, curl, sqlite3, git and aarch64 `aapt2` inside the APK; on first launch
 it unpacks them into private storage and hands them to the model as executables. From there the agent can
 inspect a repository, run a test suite, bootstrap an Alpine chroot with a JDK and the Android SDK, and
 assemble an APK on the device itself.
@@ -92,13 +100,6 @@ Six skills, loaded on demand so they cost nothing until used.
 Compose UI on all screens, Material 3 Expressive plus Liquid Glass and Capsule surfaces, light/dark/system,
 per-app language selection across six locales, floating ball for quick capture, and a terminal built on
 `libterm` with local, libsu, Shizuku and SSH backends.
-
-## Update check
-
-On cold start the app asks GitHub for the latest release, compares the tag against the running `versionName`,
-and shows a dialog when a newer one exists. Dismissing it records that version, so the same release
-interrupts once. Drafts are skipped, and the check falls back to the most recent release when no stable one
-is published yet.
 
 ## Design notes
 
