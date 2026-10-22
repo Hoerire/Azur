@@ -78,7 +78,7 @@ private fun aboutSettingsItems(): List<AboutSettingsItemUiState> {
         AboutSettingsItemUiState(
             id = AboutSettingsItemId.Repository,
             titleRes = R.string.ui_settings_about_repository,
-            uri = "https://github.com/Hoerire/azur",
+            uri = "https://github.com/Hoerire/Azur",
         ),
         AboutSettingsItemUiState(
             id = AboutSettingsItemId.Github,
@@ -92,7 +92,7 @@ internal fun buildIssueUri(title: String, body: String): String {
     return Uri.Builder()
         .scheme("https")
         .authority("github.com")
-        .path("/Hoerire/azur/issues/new")
+        .path("/Hoerire/Azur/issues/new")
         .appendQueryParameter("title", title)
         .appendQueryParameter("body", body)
         .build()

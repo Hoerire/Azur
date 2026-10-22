@@ -7,9 +7,9 @@
 # Azur
 
 <p align="center">
-  <a href="https://github.com/Hoerire/azur/releases/latest"><img src="https://img.shields.io/github/v/release/Hoerire/azur?include_prereleases" alt="release"/></a>
-  <a href="https://github.com/Hoerire/azur/releases/latest"><img src="https://img.shields.io/github/downloads/Hoerire/azur/total" alt="downloads"/></a>
-  <a href="https://github.com/Hoerire/azur/stargazers"><img src="https://img.shields.io/github/stars/Hoerire/azur?label=stars" alt="stars"/></a>
+  <a href="https://github.com/Hoerire/Azur/releases/latest"><img src="https://img.shields.io/github/v/release/Hoerire/Azur?include_prereleases" alt="release"/></a>
+  <a href="https://github.com/Hoerire/Azur/releases/latest"><img src="https://img.shields.io/github/downloads/Hoerire/Azur/total" alt="downloads"/></a>
+  <a href="https://github.com/Hoerire/Azur/stargazers"><img src="https://img.shields.io/github/stars/Hoerire/Azur?label=stars" alt="stars"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license"/>
 </p>
 
@@ -24,7 +24,7 @@ Bring your own key. Any OpenAI-compatible endpoint works, from a frontier model 
 > Android 8.0+. No root needed for the agent itself — root unlocks `shell` as `su` and the on-device build
 > environment. Accessibility service is required for screen control.
 >
-> Grab a build from [Releases](https://github.com/Hoerire/azur/releases/latest), or [build from source](#build).
+> Grab a build from [Releases](https://github.com/Hoerire/Azur/releases/latest), or [build from source](#build).
 
 ## Core Capabilities
 
@@ -84,7 +84,7 @@ Upstream is credited in the About screen.
 ## Build
 
 ```bash
-git clone https://github.com/Hoerire/azur
+git clone https://github.com/Hoerire/Azur
 cd azur
 ./gradlew :app:assembleDebug
 ```

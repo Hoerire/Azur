@@ -7,9 +7,9 @@
 # Azur
 
 <p align="center">
-  <a href="https://github.com/Hoerire/azur/releases/latest"><img src="https://img.shields.io/github/v/release/Hoerire/azur?include_prereleases" alt="release"/></a>
-  <a href="https://github.com/Hoerire/azur/releases/latest"><img src="https://img.shields.io/github/downloads/Hoerire/azur/total" alt="downloads"/></a>
-  <a href="https://github.com/Hoerire/azur/stargazers"><img src="https://img.shields.io/github/stars/Hoerire/azur?label=stars" alt="stars"/></a>
+  <a href="https://github.com/Hoerire/Azur/releases/latest"><img src="https://img.shields.io/github/v/release/Hoerire/Azur?include_prereleases" alt="release"/></a>
+  <a href="https://github.com/Hoerire/Azur/releases/latest"><img src="https://img.shields.io/github/downloads/Hoerire/Azur/total" alt="downloads"/></a>
+  <a href="https://github.com/Hoerire/Azur/stargazers"><img src="https://img.shields.io/github/stars/Hoerire/Azur?label=stars" alt="stars"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license"/>
 </p>
 
@@ -23,7 +23,7 @@ Azur 是一个跑在手机上的 AI 编程 Agent，不需要任何别的设备�
 > Android 8.0+。Agent 本体不需要 root —— root 才能让 `shell` 以 `su` 身份跑、才能用设备内构建环境。
 > 屏幕控制需要开无障碍服务。
 >
-> 去 [Releases](https://github.com/Hoerire/azur/releases/latest) 下包，或者 [自己编](#构建)。
+> 去 [Releases](https://github.com/Hoerire/Azur/releases/latest) 下包，或者 [自己编](#构建)。
 
 ## 核心能力
 
@@ -80,7 +80,7 @@ Azur 从 [niki914/zafiro](https://github.com/niki914/zafiro) 1.8.1 长出来。�
 ## 构建
 
 ```bash
-git clone https://github.com/Hoerire/azur
+git clone https://github.com/Hoerire/Azur
 cd azur
 ./gradlew :app:assembleDebug
 ```
