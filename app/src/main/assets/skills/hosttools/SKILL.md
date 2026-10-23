@@ -1,64 +1,75 @@
 ---
 name: hosttools
-description: 宿主侧内置命令行工具集（rg/jq/sqlite3/file/fd/tree/7zz/zip/rsync/curl/xz/zstd/lz4/python3/git/openssl/busybox）。凡出现搜索文件、解析 JSON、查库、识别文件类型、解压压缩、宿上没有 python3 或某命令找不到，先读本技能直接用，不要绕容器。
+description: Bundled host-side command line tools (rg/jq/sqlite3/file/fd/tree/7zz/zip/rsync/curl/xz/zstd/lz4/python3/git/openssl/busybox). Read this first whenever a task involves searching files, parsing JSON, querying a database, identifying a file type, unpacking an archive, or the host lacking python3 or some command - use these directly instead of detouring into the container.
 ---
 
-# 宿主工具集（53 个命令，全部真机实测）
+# Bundled host tools
 
 ```
-/data/user/0/com.hoerire.tools/files/hosttools/     ← app 私有目录
-  bin/       53 个命令（直接 exec；musl 动态工具的 wrapper 已自动带 loader）
-  toolchain/ aapt2(Android 原生 ELF) + lib/*.so —— 容器 aarch64 构建必需，bootstrap 自动拷到 env/toolchain
-  applets/   305 个 busybox 软链（awk sed grep tar md5sum xargs sort uniq …）
-  libexec/   动态工具真身        lib/  库 + python3.12 标准库 + site-packages(pip)
-  TOOLS.txt  全量清单
+/data/user/0/com.hoerire.tools/files/hosttools/     <- app private storage
+  bin/       commands, directly executable (musl dynamic tools already carry a loader wrapper)
+  toolchain/ aapt2 (native Android ELF) + lib/*.so - required for aarch64 container builds;
+             bootstrap copies it to env/toolchain
+  applets/   busybox symlinks (awk sed grep tar md5sum xargs sort uniq ...)
+  libexec/   the real dynamic binaries      lib/  shared libs + python3.12 stdlib + site-packages
+  TOOLS.txt  full inventory
 ```
-已注入默认 PATH（`/data/adb/ksu/bin` 是 bin 的软链）→ **直接敲命令名**，不用写全路径。
+Already on the default PATH (`/data/adb/ksu/bin` links to bin) - **type the command name**, no full path needed.
 
-## 铁律
-1. 命令找不到 / Permission denied / 构建失败 → 先跑 `sh /data/local/aitools/env-doctor.sh`（**构建失败已自动跑，看日志尾部**）；缺构建件再跑 `sh /data/local/aitools/bootstrap-env.sh`（装配器：缺件时**自动走 netrun 下载并装配**，含 `apk add openjdk17` 与 aapt2 toolchain 自愈）。不要乱下二进制。
-2. 缺工具先查 `$HT/bin`、`$HT/applets`、`TOOLS.txt`；确实没有按最后一节扩装。
-3. **联网用 `netrun`**：`netrun $HT/bin/curl -sSL -o f url`、`netrun $HT/bin/git clone ...`、`netrun $HT/bin/python3 -m pip install ...`
-   （原理：unshare -m + tmpfs 盖 /etc 写 resolv.conf + CA bundle，只影响本进程树；实测 https 200）。App 层 `py_download_file` 仍可用作备选。
+## Hard rules
+1. Command not found / Permission denied / build failed -> run `sh /data/local/aitools/env-doctor.sh` first
+   (**a failed build already runs it; check the log tail**). Missing build components -> `sh /data/local/aitools/bootstrap-env.sh`
+   (the provisioner downloads through netrun automatically and runs `apk add openjdk17`, self-heals the aapt2 toolchain).
+   Do not go fetching binaries on your own.
+2. Missing tool: look in `$HT/bin`, `$HT/applets`, `TOOLS.txt`; only then extend it per the last section.
+3. **Network goes through `netrun`**: `netrun $HT/bin/curl -sSL -o f url`, `netrun $HT/bin/git clone ...`,
+   `netrun $HT/bin/python3 -m pip install ...`
+   (it does unshare -m plus a tmpfs over /etc with resolv.conf and a CA bundle, affecting only this process tree;
+   measured https 200). The app-level `py_download_file` remains available as a fallback.
 
-## 速查
-| 需求 | 命令 | 备注 |
+## Quick reference
+| Need | Command | Notes |
 |---|---|---|
-| 搜内容/代码 | `rg -n "pat" /path` | `-g '*.kt'` `-e` 多模式 `-c` 计数 |
-| 找文件 | `fd -e sh name /path` | 比 find 快，默认忽略 .git |
+| Search content/code | `rg -n "pat" /path` | `-g '*.kt'`, `-e` for several patterns, `-c` to count |
+| Find files | `fd -e sh name /path` | faster than find, skips .git by default |
 | JSON | `jq -c '.a.b' f.json` | 1.7.1 |
-| SQLite | `sqlite3 db "select 1"` | 3.45.3，可建库 |
-| 文件真类型 | `file -b x.apk` | 带 magic.mgc，比 toybox 准 |
-| 目录树 | `tree -L 2 -d /path` | 2.1.1 |
-| 压缩/解压 | `zstd -19 f` `xz -9 f` `lz4 f` `7zz a o.7z d` `zip -r a.zip d` | |
-| 同步 | `rsync -a --delete src/ dst/` | 3.4.3 |
-| HTTP | `netrun $HT/bin/curl -sSL -o f url` | 裸 curl 无 DNS；netrun 内才有 |
-| 文本 | `awk sed grep sort uniq head tail cut tr diff md5sum sha256sum tar xargs` | busybox applet |
-| 脚本 | `python3 x.py`；`netrun pip install pkg` | Python 3.12.13 |
-| git 本地 | `git init/add/commit/diff/log` | 完整可用 |
-| git 取远端 | `netrun curl -L https://codeload.github.com/u/r/tar.gz/refs/heads/main -o r.tgz && tar xzf r.tgz` | clone 不可用 |
-| 诊断 | `lsof -p PID`、`strace -f -e openat cmd` | |
+| SQLite | `sqlite3 db "select 1"` | 3.45.3, can create databases |
+| Real file type | `file -b x.apk` | ships magic.mgc, more accurate than toybox |
+| Directory tree | `tree -L 2 -d /path` | 2.1.1 |
+| Compress/unpack | `zstd -19 f` `xz -9 f` `lz4 f` `7zz a o.7z d` `zip -r a.zip d` | |
+| Sync | `rsync -a --delete src/ dst/` | 3.4.3 |
+| HTTP | `netrun $HT/bin/curl -sSL -o f url` | bare curl has no DNS; only inside netrun |
+| Text | `awk sed grep sort uniq head tail cut tr diff md5sum sha256sum tar xargs` | busybox applets |
+| Scripting | `python3 x.py`; `netrun pip install pkg` | Python 3.12.13 |
+| git local | `git init/add/commit/diff/log` | fully usable |
+| git remote | `netrun curl -L https://codeload.github.com/u/r/tar.gz/refs/heads/main -o r.tgz && tar xzf r.tgz` | clone is not usable |
+| Diagnostics | `lsof -p PID`, `strace -f -e openat cmd` | |
 
-## 什么时候别用它（省得白试）
-- `file` / `curl` 要完整能力：`/system/bin` 在 PATH 里排第一，写全路径 `$HT/bin/file`
-- 编译 / gradle / 出 APK：用 `/data/local/aitools`（环境在 `env/`，不是本技能）
-- `pip install` 联网：用 `netrun $HT/bin/pip install pkg`（裸 pip 无 DNS）
+## When not to use it (skip the dead end)
+- Full `file` / `curl` capability: `/system/bin` comes first in PATH, so call `$HT/bin/file` explicitly.
+- Compiling / gradle / producing an APK: that is `/data/local/aitools` territory (environment in `env/`, not here).
+- `pip install` over the network: `netrun $HT/bin/pip install pkg` (bare pip has no DNS).
 
-## 扩装一个命令（成本从低到高）
-1. **单文件静态二进制**：下到 `$HT/bin/<name>`，`chmod 755` 即可。
-2. **Alpine arm64 包**（apk 就是 tar.gz，包通常几十 KB）：
+## Adding a command (cheapest first)
+1. **Single static binary**: drop it in `$HT/bin/<name>`, `chmod 755`, done.
+2. **Alpine arm64 package** (an apk is just tar.gz, usually tens of KB):
    ```sh
-   tar -xzf pkg.apk -C /data/local/aitools/tmp/x        # usr/bin/X、usr/lib/*.so*
+   tar -xzf pkg.apk -C /data/local/aitools/tmp/x        # usr/bin/X, usr/lib/*.so*
    cp .../usr/bin/X $HT/libexec/X && chmod 755 $HT/libexec/X
    printf '#!/system/bin/sh\nexec %s/lib/ld-musl-aarch64.so.1 --library-path %s/lib %s/libexec/X "$@"\n' "$HT" "$HT" "$HT" > $HT/bin/X
-   chmod 755 $HT/bin/X; cp .../usr/lib/*.so* $HT/lib/     # 缺库逐个补
-   # 有 libX.so.A.B 就建链：ln -sf libX.so.A.B $HT/lib/libX.so.A
+   chmod 755 $HT/bin/X; cp .../usr/lib/*.so* $HT/lib/    # add missing libs one by one
+   # for libX.so.A.B create the soname link: ln -sf libX.so.A.B $HT/lib/libX.so.A
    ```
-3. **建项目 / 编译**：目录固定 `/data/local/aitools/{src,project,out,logs,tmp}`；改完先 `sync.sh` 再构建；gradle 串行，只带 `--max-workers=1`。
+3. **Building a project / compiling**: directories are fixed at `/data/local/aitools/{src,project,out,logs,tmp}`;
+   edit, then `sync.sh` before building; gradle runs serially, always pass `--max-workers=1`.
 
-## 在设备上跑 Python：随包 CPython 是唯一解释器
+## Running Python on the device: the bundled CPython is the only interpreter
 
-- 路径：`/data/user/0/com.hoerire.tools/files/hosttools/bin/python3`（3.12，纯 stdlib）。
-- **zafiro_env 的 Alpine chroot 里没有 python3**，也看不到 `/data/user`。chroot 里要用它只能 `nsenter -t 1 -m -- /data/user/0/.../bin/python3 script.py`。
-- 执行通道优先级：App 内 `shell` 工具（用户能看到命令与输出）> `zafiro_env shell` + nsenter。`shell` 挂掉（PTY 层故障）时才退到后者。
-- 批量扫描/改写 Kotlin、二进制一律写 python 脚本再执行。别用 `sed -i`/heredoc 拼多行：引号地狱（`unterminated quoted string`、`MISSING_REQUIRED_FIELD`）返工成本远高于写脚本。
+- Path: `/data/user/0/com.hoerire.tools/files/hosttools/bin/python3` (3.12, stdlib only).
+- **The zafiro_env Alpine chroot has no python3** and cannot see `/data/user`. To use it from inside the
+  chroot you must go through `nsenter -t 1 -m -- /data/user/0/.../bin/python3 script.py`.
+- Execution channel priority: the app's `shell` tool (the user sees the command and its output) first, then
+  `zafiro_env shell` plus nsenter. Only fall back to the latter when `shell` is unavailable.
+- For bulk scans or rewrites of Kotlin or binaries, always write a python script and run it. Do not compose
+  multi-line edits with `sed -i` or heredocs: quote hell (`unterminated quoted string`,
+  `MISSING_REQUIRED_FIELD`) costs far more to repair than writing the script.

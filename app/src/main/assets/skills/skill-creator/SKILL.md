@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Create new skills, modify and improve existing skills, and measure skill performance. Use whenever the user wants to create a skill from scratch, turn a workflow or repeated task into a skill, edit or optimize an existing skill, test a skill with realistic prompts, or tune a skill's description so it triggers reliably — even if they don't say the word "skill". 也涵盖「从 GitHub 仓库安装/导入/更新技能、粘贴仓库 URL」。
+description: Create new skills, modify and improve existing skills, and measure skill performance. Use whenever the user wants to create a skill from scratch, turn a workflow or repeated task into a skill, edit or optimize an existing skill, test a skill with realistic prompts, or tune a skill's description so it triggers reliably — even if they don't say the word "skill". Also covers installing, importing or updating a skill from a GitHub repository, including pasting a repo URL.
 ---
 
 # Skill Creator
@@ -21,8 +21,9 @@ Your job when using this skill is to figure out where the user is in this proces
 
 ## Where skills live here
 
-> **改完必须双写**：本机技能来自 APK 内置 `app/src/main/assets/skills/`，运行时副本在 `files/skills/`。
-> 只改运行时副本会被下次重装覆盖 → 两处都要写，md5 对齐。
+> **Skills ship inside the APK**: `app/src/main/assets/skills/` is the source of truth and is seeded
+> into `files/skills/` on install. Edit the asset copy only - hand-editing the runtime copy makes its
+> `.seed` marker mismatch, and the seeder then treats the skill as user-modified and stops updating it.
 
 - Skills live under `/data/data/com.hoerire.tools/files/skills/`. A skill is a directory `<skills-root>/<id>/` holding a `SKILL.md`; the id may be one or two levels deep (`<repo>/<skill>`).
 - If that path ever differs (debug build, fork), don't guess: the skills root is the parent of the `<dir>` that the skills list shows for any skill, and `load_skill` returns a skill's absolute dir.
@@ -191,7 +192,7 @@ The description field is the primary mechanism that determines whether a skill i
 
 ---
 
-## 附：从 GitHub 安装现成技能
+## Appendix: installing an existing skill from GitHub
 
 # Install Skill from GitHub
 

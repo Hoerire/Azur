@@ -104,34 +104,44 @@ that a restart is needed, hand the decision over, and stop there.
 
 ---
 
-## 附：执行规则（Execution Rules）的维护
+## Appendix: maintaining the execution rules
 
-# 执行规则（设计原则与维护）
+# Execution rules (design and upkeep)
 
-## 分层原则（最重要）
-规则的目的是**省时间**，不是限权。按「错了会怎样」分三层：
-| 层 | 模式 | 放什么 | 命中后 |
+## Layering (the point of the whole thing)
+The rules exist to **save time**, not to gatekeep. Sort by "what breaks if this is wrong":
+
+| Layer | Mode | Contents | On match |
 |---|---|---|---|
-| ① 破坏性命令 | `DISABLED`（默认关） | rm -rf、mkfs、dd、setprop、reboot、pm uninstall、su | 不拦；需要时自己在规则页打开 |
-| ② 无效操作 | `ALWAYS` | 做了必错或无意义：全盘枚举、手搓 chroot、grep 的 PCRE 选项、gradle 旧参数、直接跑 gradlew、`--src` 指 src/、手工 tar 打环境包 | 直接拦 + `怎么改:` 提示 |
-| ③ 高影响操作 | `CONFIRM` | 写共享存储、写 `/tmp`、写系统分区、写其他 App 沙盒、pkill 宽匹配 | **弹窗确认**；允许即执行，拒绝 `CONFIRM_DENIED`，无渠道 `CONFIRM_UNAVAILABLE` |
+| (1) destructive | `DISABLED` (off by default) | rm -rf, mkfs, dd, setprop, reboot, pm uninstall, su | not blocked; enable from the rules screen when needed |
+| (2) pointless | `ALWAYS` | things that can only fail or mean nothing: whole-disk walks, hand-rolled chroot, grep PCRE flags, obsolete gradle flags, calling gradlew directly, `--src` pointing at src/, hand-made tar of the environment | blocked + a "fix it like this:" hint |
+| (3) high impact | `CONFIRM` | writing shared storage, writing `/tmp`, writing system partitions, writing another app's sandbox, broad pkill | **popup confirmation**; allow runs it, deny returns `CONFIRM_DENIED`, no channel returns `CONFIRM_UNAVAILABLE` |
 
-实测：`CONFIRM` 会真的弹窗，用户点「允许」后命令照常执行 → 既不放任也不堵路。
-判断标准：**能用规则判定的进②③；需要语义或跨调用状态的（串行构建、改完回读、临时目录自清）只能留技能。**
+Measured: `CONFIRM` really pops up, and after the user taps allow the command runs normally - so it
+neither waves things through nor blocks the road.
 
-## 结构
+Rule of thumb: **anything expressible as a regex belongs in layers (2) and (3); anything needing
+semantics or cross-call state (serial builds, read-back after edit, temp-dir self-cleanup) stays in a
+skill.**
+
+## Structure
 ```
-rules[0] builtin-dangerous  "default"         DISABLED  10 条
-rules[1] builtin-guard      "无效操作 · 直接拦"  ALWAYS    15 条
-rules[2] builtin-impact     "高影响操作 · 需确认" CONFIRM    7 条
+rules[0] builtin-dangerous  "default"                 DISABLED  10 entries
+rules[1] builtin-guard      "pointless - blocked"     ALWAYS    15 entries
+rules[2] builtin-impact     "high impact - confirm"   CONFIRM    7 entries
 ```
-- 后两者都带 `tool_filter = [shell, zafiro_env]`：只在执行类工具上匹配，写文档/写文件不参与。
-- 每条规则都有 `hint`，命中时返回 `怎么改:` 一行。
+- The latter two carry `tool_filter = [shell, zafiro_env]`: they only match execution tools, never
+  document or file writes.
+- Every rule has a `hint`, returned as a single "fix it like this:" line on match.
 
-## pattern 写法铁律
-1. **锚定命令起点** `(^|[;&|\n])\s*`：`echo "…pkill -f…" > file`、文档正文都不会误伤。
-2. 例外判定用全字符类：`find` 放行 `-maxdepth` 要写 `(?![\s\S]*maxdepth)`；用 `[\n]*` 因空格而恒不生效（踩过）。
-3. 区分源/目标：`cp|mv|ln` 只判目标在末尾（`\s/(storage|sdcard)/\S*\s*$`），源在共享存储的备份场景放行。
-4. 拦 `/tmp` 用 `>\s*/tmp/`，天然不命中 `/data/local/tmp`（pm install 需要）。
-- 宿主 `python3` 路径：`/data/user/0/com.hoerire.tools/files/hosttools/bin/python3`
-   → 副作用：**写文档时正文里出现这些 API 名，会把自己送进规则**；写这类文档要用字符串拼接避开。
+## Pattern rules
+1. **Anchor the command start** with `(^|[;&|\n])\s*` so `echo "...pkill -f..." > file` and prose in a
+   document are not false-positived.
+2. Use a full character class for exceptions: to allow `find` with `-maxdepth` write
+   `(?![\s\S]*maxdepth)`; using `[\n]*` fails on spaces (measured).
+3. Source versus destination: for `cp|mv|ln` match only a trailing destination
+   (`\s/(storage|sdcard)/\S*\s*$`), so backing up from shared storage still passes.
+4. Block `/tmp` with `>\s*/tmp/`, which naturally does not hit `/data/local/tmp` (needed for pm install).
+- Host `python3` path: `/data/user/0/com.hoerire.tools/files/hosttools/bin/python3`
+  -> side effect: mentioning these API names in a document sends that document through the rules
+  itself; build such strings by concatenation.
