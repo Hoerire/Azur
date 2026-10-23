@@ -1,7 +1,9 @@
 gradle.afterProject { p ->
   if (!p.plugins.hasPlugin('com.android.application')) return
   def android = p.extensions.getByName('android')
-  def ks = p.findProperty('zafiroKs') ?: '/data/local/aitools/env/debug.keystore'
+  // Same keystore AGP uses for the debug buildType, so debug and release are
+  // interchangeable on one device (no uninstall needed to switch variants).
+  def ks = p.findProperty('zafiroKs') ?: "${System.getProperty('user.home')}/.android/debug.keystore"
   def cfg = android.signingConfigs.maybeCreate('zafiroRelease')
   cfg.storeFile = p.file(ks)
   cfg.storePassword = 'android'

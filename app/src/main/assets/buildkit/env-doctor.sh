@@ -85,6 +85,13 @@ MEM=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo 2>/dev/null); MEM=$
 DFK=$(df /data 2>/dev/null | awk 'NR==2{print $4}'); DFK=${DFK:-0}
 [ "$DFK" -gt 3000000 ] && ok "磁盘可用 $((DFK/1024))MB" || no "磁盘仅 $((DFK/1024))MB" "清 tmp/ 与旧包"
 
+# 代码推送只能用 chroot 里的 git：hosttools 的 git-remote-http 也是 musl 二进制，
+# PT_INTERP 指向 /lib/ld-musl-aarch64.so.1，设备上不存在，因此 https push 必失败。
+if [ -x "$R/usr/bin/git" ] && [ -f "$R/usr/libexec/git-core/git-remote-http" ]; then
+  ok "推送用 chroot git ($R/usr/bin/git)"
+else
+  info "chroot git 不可用：源码推送需要它，宿主 git 无法 https"
+fi
 echo "----  PASS=$P FAIL=$F"
 [ "$F" -gt 0 ] && echo "----  修法: sh /data/local/aitools/bootstrap-env.sh（缺件会打印下载清单，下载走 py_download_file）"
 [ "$F" = 0 ]

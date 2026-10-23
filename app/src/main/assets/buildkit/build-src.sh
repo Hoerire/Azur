@@ -73,7 +73,15 @@ if [ -z "$GDLIB" ]; then
   GDLIB=$(ls -1d "$Z"/gradle-[0-9]*/lib 2>/dev/null | sort -V | tail -1)
 fi
 [ -n "$GDLIB" ] || { echo "env missing: $Z/gradle-<ver>/lib"; exit 1; }
+# Default to the keystore AGP itself uses for the debug buildType, so a debug
+# and a release build of the same commit carry identical signatures and can
+# replace each other on a device without uninstalling (which would wipe data).
+# Keep this keystore byte-identical to the one AGP uses for the debug buildType
+# (synced below), so debug and release builds of the same commit share a
+# signature and can replace each other without an uninstall that wipes data.
 KS=${ZAFIRO_KS:-$Z/debug.keystore}
+[ -f "$Z/rootfs/root/.android/debug.keystore" ] && \
+  cp -f "$Z/rootfs/root/.android/debug.keystore" "$Z/debug.keystore" 2>/dev/null
 # 容器内路径映射（run.sh 把宿主 $A 绑到容器 /data/local/aitools）
 GDLIB_G=$(printf '%s' "$GDLIB" | sed "s#^$Z#/data/local/aitools/env#")
 KS_G=$(printf '%s' "$KS" | sed "s#^$A#/data/local/aitools#")

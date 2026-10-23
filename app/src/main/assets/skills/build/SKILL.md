@@ -178,3 +178,21 @@ sh /data/local/aitools/verify.sh || exit 1
 - 第三方预编译二进制（aapt2 及其依赖库）常把构建机路径写进 ELF：RUNPATH 指向构建机的绝对 `usr/lib`，`.rodata` 带构建目录。这类二进制只在装有同款环境时能跑，换机立刻 `library "libz.so.1" not found`。
 - 净化（不需要重编）：`patchelf --set-rpath '$ORIGIN'`（库）/ `'$ORIGIN/lib'`（可执行）；`.rodata` 等长掩码（长度不变、不动偏移）；把闭包缺的库（libz.so.1 / libexpat.so.1 / libbz2.so.1.0）收编进 `toolchain/lib`。
 - 验收：**不设** LD_LIBRARY_PATH 直接跑 `toolchain/aapt2 version`，再 `aapt2 compile <某个 values.xml>` 出 zip。
+
+## 推源码到远程
+
+宿主 git 不能 https：`libexec/git-core/git-remote-http` 是 musl 二进制，PT_INTERP 指向
+`/lib/ld-musl-aarch64.so.1`，设备上不存在且 `/` 只读建不了。不要绕 wrapper（git 靠 `argv[0]` 判角色，
+`exec ld-musl` 会把子命令弄丢；`git remote-http` 转发会自我递归到 `Argument list too long`）。
+
+只能走 chroot 里的 Alpine git（`env/rootfs/usr/bin/git`，带真实 732KB `git-remote-http`）：
+
+```sh
+# 必须在 zafiro_env(shell) 里跑
+export GIT_DIR=/data/local/aitools/tmp/git/<bare-repo>.git
+export GIT_WORK_TREE=/data/local/aitools/src/<tree>
+cd "$GIT_WORK_TREE" && git push origin main
+```
+
+若报 `fatal: Invalid path '/data/local/aitools/<旧目录名>'`，说明 bare repo 的 `core.worktree` 还指着改名前的路径，
+先 `git --git-dir=<repo> config core.worktree <新路径>`。
