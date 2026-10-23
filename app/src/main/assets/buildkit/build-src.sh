@@ -36,7 +36,7 @@ if [ -z "$SRC" ]; then
 fi
 { [ -n "${SRC:-}" ] && [ -f "$SRC/gradlew" ]; } || { echo "SRC missing: ${SRC:-none}"; exit 1; }
 
-# 工程目录命名铁律（2026-10-21）：工程/<名> 必须与 src/<名> 一一对应。
+# project/<name> must correspond one-to-one with src/<name>.
 # 目的：多家源码并存时绝不共用同一 build 树（否则 build/ 缓存、产物、md5 对齐全部串味）。
 SB=$(basename "$SRC")
 # 容器内路径：run.sh 把 $A 绑到容器 /data/local/aitools，故宿主 $A 前缀换成容器根

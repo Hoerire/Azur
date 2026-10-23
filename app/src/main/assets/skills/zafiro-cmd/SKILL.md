@@ -1,12 +1,12 @@
 ---
 name: zafiro-cmd
-description: 命令调用格式速查（zafiro_env 正确写法全集）。凡是出现「调用工具 / 命令拼接 / 命令被拦截 / 报错看不懂 / 输出噪音 / su -c / 容器 / shell 工具 / 构建命令 / 编译命令 / 解压 / install / check / status / deploy / md5 / 怎么执行」这类问题，先读本技能照抄，不要自己拼命令试错。
+description: 命令调用格式速查（zafiro_env 正确写法全集）。凡是出现「调用工具 / 命令拼接 / 命令被拦截 / 报错看不懂 / 输出噪音 / su -c / 容器 / shell 工具 / 构建命令 / 编译命令 / 解压 / install / check / status / md5 / 怎么执行」这类问题，先读本技能照抄，不要自己拼命令试错。
 ---
 
 # 命令格式速查（全部实测过）
 > 命令本身的兼容性（`\|` 静默失效、`diff -x` 不支持、`find -printf`、aapt 是 x86_64）见 `build` 技能第 4 节「命令兼容性」，先读再拼命令。
 
-**优先级**：能用宿主内置工具（52 个：rg/jq/sqlite3/file/tree/7zz/zip/rsync/curl/xz/zstd/lz4/python3+pip/git/openssl，
+**优先级**：能用宿主内置工具（rg/jq/sqlite3/file/tree/7zz/zip/rsync/curl/xz/zstd/lz4/python3+pip/git/openssl，
 见 `hosttools` 技能）就别进容器；只有编译、跑 gcc/cmake、装 apk、出 APK 才用 `zafiro_env`。
 
 工具内部已经处理提权、进容器、参数转义。**你只传裸命令，一个 action 干一件事**。
@@ -24,7 +24,7 @@ description: 命令调用格式速查（zafiro_env 正确写法全集）。凡�
 环境出问题不要再想"重新部署"，按下面处理：
 
 ```sh
-sh /data/local/aitools/env-doctor.sh        # 25 项实测体检，缺什么会带 fix 行
+sh /data/local/aitools/env-doctor.sh        # 实测体检，缺什么会带 fix 行
 ```
 - 构建失败时 `build-src.sh` **已自动**跑 doctor 并写进日志尾部，先看日志
 - 缺件按 fix 行手动补；宿主工具在 `files/hosttools`（见 `hosttools` 技能）
@@ -73,5 +73,5 @@ tail -20 /data/local/aitools/logs/build-py.log
 - 看到 `ENV_NOT_INSTALLED` / `PACK_NOT_FOUND`：跑 `sh /data/local/aitools/env-doctor.sh` 看缺哪项，按 fix 行手动补（**没有 deploy 了**）。
 
 ## 目录地图（先读这个）
-`/data/local/aitools/{源码,工程,产物,日志,tmp}` + `env/`（构建工具链，缺件跑 env-doctor）。
+`/data/local/aitools/{src,project,out,logs,tmp}` + `env/`（构建工具链，缺件跑 env-doctor）。
 `src/<tree>` 就是权威源码树（树名由你当前在改的项目决定），直接改，别管它内部模块怎么分。

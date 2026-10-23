@@ -80,11 +80,15 @@ Java  java(17/21) javac jar javadoc javap jlink jimage
 
 ## 1. 目录
 ```
-env/  rootfs run.sh env.sh android-sdk/ gradle-<ver>/ gradle-home/ toolchain/ debug.keystore
-project/  <源码同名目录>（gradlew 只在这里跑）+ sync.sh
-src/  权威源码，只改不编译（必须无 build/ .gradle/ .kotlin/）
-out/  logs/  tmp/
+<root>/  verify.sh build-src.sh bootstrap-env.sh env-doctor.sh env.sh run.sh
+         hosttools-install.sh aitools-fix.sh
+env/     rootfs/ android-sdk/ gradle-<ver>/ gradle-home/ toolchain/ buildkit/ debug.keystore
+project/ <树名>（gradlew 只在这里跑）+ sync.sh
+src/     <树名> 权威源码，只改不编译（必须无 build/ .gradle/ .kotlin/）
+out/     logs/     tmp/
 ```
+- 根下 `verify.sh` 是门禁，构建前先跑；`buildkit/` 里是签名与 lint 的 init 脚本，装包时会被覆盖回 APK 版本。
+- 产物名由 `ZAFIRO_APK_NAME` 决定，不叫固定名；取最新用 `ls -t out/*.apk | head -1`，别假设 `app-debug.apk`。
 
 ## 2. env
 - 有 `env/env.sh` 就是装好了，不要重建。查版本 `zafiro_env(action="check")`。

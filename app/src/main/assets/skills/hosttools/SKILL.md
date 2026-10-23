@@ -54,7 +54,7 @@ description: 宿主侧内置命令行工具集（rg/jq/sqlite3/file/fd/tree/7zz/
    chmod 755 $HT/bin/X; cp .../usr/lib/*.so* $HT/lib/     # 缺库逐个补
    # 有 libX.so.A.B 就建链：ln -sf libX.so.A.B $HT/lib/libX.so.A
    ```
-3. **建项目 / 编译**：目录固定 `/data/local/aitools/{源码,工程,产物,日志,tmp}`；改完先 `sync.sh` 再构建；gradle 串行，只带 `--max-workers=1`。
+3. **建项目 / 编译**：目录固定 `/data/local/aitools/{src,project,out,logs,tmp}`；改完先 `sync.sh` 再构建；gradle 串行，只带 `--max-workers=1`。
 
 ## 在设备上跑 Python：随包 CPython 是唯一解释器
 
