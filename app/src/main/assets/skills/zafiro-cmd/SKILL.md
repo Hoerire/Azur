@@ -44,7 +44,7 @@ sh /data/local/aitools/env-doctor.sh        # 25 项实测体检，缺什么会�
 {"action":"shell","cmd":"gcc --version"}
 {"action":"shell","cmd":"gcc -O2 -o /data/local/aitools/tmp/a /data/local/aitools/tmp/a.c && /data/local/aitools/tmp/a"}
 {"action":"shell","cmd":"cmake -S /data/local/aitools/tmp/p -B /data/local/aitools/tmp/p/out -G Ninja && cmake --build /data/local/aitools/tmp/p/out"}
-{"action":"shell","cmd":"md5sum /data/local/aitools/out/app-debug.apk"}
+{"action":"shell","cmd":"ls -t /data/local/aitools/out/*.apk | head -3; md5sum /data/local/aitools/out/*.apk"}
 {"action":"shell","cmd":"rustc --version; node --version; go version"}                        # 多条用分号是允许的
 {"action":"apk","cmd":"info -e gcc"}          # 查包是否安装，装了回显包名
 {"action":"apk","cmd":"add --no-cache jq"}    # 装包（腾讯源）
@@ -74,4 +74,4 @@ tail -20 /data/local/aitools/logs/build-py.log
 
 ## 目录地图（先读这个）
 `/data/local/aitools/{源码,工程,产物,日志,tmp}` + `env/`（构建工具链，缺件跑 env-doctor）。
-`src/zafiro-15-1.8.1-Fork` 就是权威源码树，直接改，别管它内部模块怎么分。
+`src/<tree>` 就是权威源码树（树名由你当前在改的项目决定），直接改，别管它内部模块怎么分。
